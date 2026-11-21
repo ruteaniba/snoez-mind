@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const formLogin = document.getElementById("login-form");
   const formRegister = document.getElementById("register-form");
   const formRecover = document.getElementById("recover-form");
@@ -25,6 +25,27 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     recoverPassword(document.getElementById("rec-email").value.trim());
   });
+
+  if (typeof sb !== "undefined" && sb) {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session && document.getElementById("app-section")) {
+      const { data: profile } = await sb
+        .from("profiles")
+        .select("*")
+        .eq("id", session.user.id)
+        .single();
+
+      if (profile) {
+        const check = profile.role === "admin" ? { ok: true } : isAccessAllowed(profile);
+        if (check.ok) {
+          document.getElementById("auth-section")?.classList.add("hidden");
+          document.getElementById("app-section")?.classList.remove("hidden");
+          const emailEl = document.getElementById("user-email");
+          if (emailEl) emailEl.textContent = profile.email;
+        }
+      }
+    }
+  }
 });
 
 function switchTab(tab) {
