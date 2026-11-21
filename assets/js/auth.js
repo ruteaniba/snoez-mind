@@ -64,7 +64,11 @@ async function loginUser(email, password) {
 }
 
 async function registerUser(nome, email, whatsapp, password) {
-  const cleanWhatsapp = whatsapp.replace(/\D/g, "");
+  showAlert("auth-alert", "A criar conta...", "success");
+  if (typeof sb === "undefined" || !sb) {
+    return showAlert("auth-alert", "Erro de configuração do Supabase (config.js).");
+  }
+  const cleanWhatsapp = String(whatsapp || "").replace(/\D/g, "");
   const { error } = await sb.auth.signUp({
     email,
     password,
@@ -80,6 +84,10 @@ async function registerUser(nome, email, whatsapp, password) {
 }
 
 async function recoverPassword(email) {
+  showAlert("auth-alert", "A enviar ligação de recuperação...", "success");
+  if (typeof sb === "undefined" || !sb) {
+    return showAlert("auth-alert", "Erro de configuração do Supabase (config.js).");
+  }
   const basePath = window.location.pathname.replace(/\/[^/]*$/, "/");
   const redirectTo = window.location.origin + basePath + "redefinir-senha.html";
   const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
