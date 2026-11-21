@@ -39,7 +39,7 @@ async function loginUser(email, password) {
 
   if (pErr || !profile) {
     await sb.auth.signOut();
-    return showAlert("auth-alert", "Perfil não encontrado na tabela profiles.");
+    return showAlert("auth-alert", "pErr ? pErr.message : "Perfil não encontrado na tabela profiles."");
   }
 
   if (profile.role === "admin") {
