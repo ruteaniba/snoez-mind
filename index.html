@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>SnoezMind</title>
+  <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="assets/css/style.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <div id="auth-section" class="container" style="max-width: 440px; margin-top: 32px;">
+  <div id="auth-section" class="container" style="max-width:440px; margin-top:24px;">
     <div class="card">
       <h1>SnoezMind</h1>
       <p class="subtitle">Acesse ou crie sua conta para continuar</p>
@@ -16,12 +17,12 @@
 
       <form id="login-form">
         <div class="field">
-          <label>E-mail</label>
-          <input type="email" id="login-email" required placeholder="seu@email.com">
+          <label for="login-email">E-mail</label>
+          <input id="login-email" type="email" placeholder="seu@email.com" required>
         </div>
         <div class="field">
-          <label>Senha</label>
-          <input type="password" id="login-pass" required placeholder="••••••••">
+          <label for="login-pass">Senha</label>
+          <input id="login-pass" type="password" placeholder="••••••••" required>
         </div>
         <button type="submit" class="btn btn-gold">Entrar</button>
         <div class="links-row">
@@ -32,20 +33,20 @@
 
       <form id="register-form" class="hidden">
         <div class="field">
-          <label>Nome completo</label>
-          <input type="text" id="reg-nome" required placeholder="Seu nome">
+          <label for="reg-nome">Nome completo</label>
+          <input id="reg-nome" type="text" placeholder="Seu nome" required>
         </div>
         <div class="field">
-          <label>E-mail</label>
-          <input type="email" id="reg-email" required placeholder="seu@email.com">
+          <label for="reg-email">E-mail</label>
+          <input id="reg-email" type="email" placeholder="seu@email.com" required>
         </div>
         <div class="field">
-          <label>WhatsApp</label>
-          <input type="tel" id="reg-whatsapp" required inputmode="tel" placeholder="(61) 99999-9999">
+          <label for="reg-whatsapp">WhatsApp</label>
+          <input id="reg-whatsapp" type="tel" placeholder="(61) 99999-9999" required>
         </div>
         <div class="field">
-          <label>Senha</label>
-          <input type="password" id="reg-pass" required minlength="6" placeholder="Mínimo 6 caracteres">
+          <label for="reg-pass">Senha</label>
+          <input id="reg-pass" type="password" minlength="6" placeholder="Mínimo 6 caracteres" required>
         </div>
         <button type="submit" class="btn btn-gold">Cadastrar</button>
         <div class="links-row">
@@ -55,8 +56,8 @@
 
       <form id="recover-form" class="hidden">
         <div class="field">
-          <label>E-mail cadastrado</label>
-          <input type="email" id="rec-email" required placeholder="seu@email.com">
+          <label for="rec-email">E-mail cadastrado</label>
+          <input id="rec-email" type="email" placeholder="seu@email.com" required>
         </div>
         <button type="submit" class="btn btn-gold">Enviar link de recuperação</button>
         <div class="links-row">
@@ -69,16 +70,172 @@
   <div id="app-section" class="hidden">
     <header class="topbar">
       <span class="brand">SnoezMind</span>
-      <button class="btn btn-outline btn-sm" onclick="logoutUser()">Sair</button>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <a id="admin-link" href="admin.html" class="btn btn-outline btn-sm hidden">Painel Admin</a>
+        <button class="btn btn-outline btn-sm" onclick="logoutUser()">Sair</button>
+      </div>
     </header>
+
     <main class="container">
       <div class="card">
-        <h2>Área do Usuário</h2>
+        <h2>Área Terapêutica</h2>
         <p class="subtitle">Conectado como: <strong id="user-email"></strong></p>
-        <div id="app-workspace">
-          <!-- As funções específicas do aplicativo entram aqui -->
+
+        <div class="grid-2" style="align-items:end;">
+          <div class="field" style="margin-bottom:0;">
+            <label for="active-child-select">Criança em atendimento (para salvar no relatório)</label>
+            <select id="active-child-select" onchange="onChildChange()">
+              <option value="">Sessão avulsa (sem criança vinculada)</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>Estímulo de fala (voz)</label>
+            <button type="button" class="btn btn-outline" style="width:100%;" onclick="toggleSpeech()">
+              Voz Ativada: <span id="speech-status">SIM</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      <div class="nav-tabs">
+        <button class="tab-btn active" data-tab="jogos" onclick="switchWorkspaceTab('jogos')">Jogos Terapêuticos</button>
+        <button class="tab-btn" data-tab="criancas" onclick="switchWorkspaceTab('criancas')">Crianças & Relatórios</button>
+        <button class="tab-btn" data-tab="emocional" onclick="switchWorkspaceTab('emocional')">Terapia Emocional & Anamnese</button>
+      </div>
+
+      <div id="app-alert" class="alert"></div>
+
+      <!-- ABA 1: JOGOS TERAPÊUTICOS -->
+      <section id="tab-jogos" class="card">
+        <h3>Jogos Educativos e Terapêuticos</h3>
+        <p class="subtitle">Toque ou clique para interagir. Ideal para celular, tablet ou computador.</p>
+
+        <div class="game-selector">
+          <button class="btn btn-outline btn-sm" onclick="startGame('pareamento_cores')">Pareamento Colorido</button>
+          <button class="btn btn-outline btn-sm" onclick="startGame('pareamento_sobras')">Pareamento com Sobras</button>
+          <button class="btn btn-outline btn-sm" onclick="startGame('quebra_cabeca')">Quebra-Cabeça</button>
+          <button class="btn btn-outline btn-sm" onclick="startGame('identificacao_imagem')">Identificação de Imagem</button>
+          <button class="btn btn-outline btn-sm" onclick="startGame('ligar_imagens')">Ligar uma Imagem a Outra</button>
+          <button class="btn btn-outline btn-sm" onclick="startGame('identificacao_conceitos')">Letras, Números, Cores e Formas</button>
+        </div>
+
+        <div id="game-board" class="game-board">
+          <p class="subtitle">Escolha um jogo acima para iniciar a atividade.</p>
+        </div>
+      </section>
+
+      <!-- ABA 2: CRIANÇAS & RELATÓRIOS -->
+      <section id="tab-criancas" class="card hidden">
+        <h3>Cadastro de Crianças</h3>
+        <p class="subtitle">Registre crianças com TEA, Síndrome de Down, TDAH ou outras condições para acompanhar a evolução.</p>
+
+        <form id="child-form" class="grid-2">
+          <div class="field">
+            <label for="child-nome">Nome da criança</label>
+            <input id="child-nome" type="text" required>
+          </div>
+          <div class="field">
+            <label for="child-idade">Idade</label>
+            <input id="child-idade" type="number" min="1" max="99">
+          </div>
+          <div class="field">
+            <label for="child-diag">Condição / Foco (ex.: TEA, TDAH, Down, Fala)</label>
+            <input id="child-diag" type="text">
+          </div>
+          <div class="field">
+            <label for="child-obs">Observações / Reforçadores</label>
+            <input id="child-obs" type="text">
+          </div>
+          <div class="field" style="grid-column: 1 / -1;">
+            <button type="submit" class="btn btn-gold">Salvar Criança</button>
+          </div>
+        </form>
+
+        <h3 style="margin-top:20px;">Crianças Cadastradas</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Idade</th>
+                <th>Condição / Foco</th>
+                <th>Observações</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+            <tbody id="children-tbody"></tbody>
+          </table>
+        </div>
+
+        <h3 style="margin-top:24px;">Relatório de Acompanhamento (Jogos)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Criança</th>
+                <th>Jogo</th>
+                <th>Acertos / Tentativas</th>
+                <th>Precisão</th>
+                <th>Tempo</th>
+              </tr>
+            </thead>
+            <tbody id="reports-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ABA 3: TERAPIA EMOCIONAL & ANAMNESE -->
+      <section id="tab-emocional" class="card hidden">
+        <h3>Terapia Emocional — Cadastro de Clientes e Anamnese</h3>
+        <p class="subtitle">Registre clientes e mantenha a anamnese organizada e atualizada.</p>
+
+        <form id="client-form">
+          <input type="hidden" id="client-id">
+          <div class="grid-2">
+            <div class="field">
+              <label for="client-nome">Nome do cliente</label>
+              <input id="client-nome" type="text" required>
+            </div>
+            <div class="field">
+              <label for="client-tel">Telefone / WhatsApp</label>
+              <input id="client-tel" type="text">
+            </div>
+            <div class="field">
+              <label for="client-email">E-mail</label>
+              <input id="client-email" type="email">
+            </div>
+            <div class="field">
+              <label for="client-queixa">Queixa principal</label>
+              <input id="client-queixa" type="text">
+            </div>
+          </div>
+          <div class="field">
+            <label for="client-anamnese">Anamnese (histórico, gatilhos, contexto emocional e observações)</label>
+            <textarea id="client-anamnese" placeholder="Escreva aqui os detalhes da anamnese..."></textarea>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="submit" class="btn btn-gold" style="max-width:260px;">Salvar Cliente & Anamnese</button>
+            <button type="button" class="btn btn-outline" onclick="resetClientForm()">Limpar Campos</button>
+          </div>
+        </form>
+
+        <h3 style="margin-top:22px;">Clientes Cadastrados</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Contato</th>
+                <th>Queixa Principal</th>
+                <th>Anamnese</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="clients-tbody"></tbody>
+          </table>
+        </div>
+      </section>
     </main>
   </div>
 
