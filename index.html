@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-PT">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>SnoezMind</title>
-  <link rel="manifest" href="manifest.json?v=20261121c">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261121c">
+  <link rel="manifest" href="manifest.json?v=20261121d">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261121d">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -255,6 +255,50 @@
       el.className = "alert show " + (isOk ? "success" : "error");
     };
 
+    window.handleLoginSubmit = async function() {
+      var email = (document.getElementById("login-email")?.value || "").trim();
+      var password = document.getElementById("login-pass")?.value || "";
+
+      if (typeof sb === "undefined" || !sb || !sb.auth) {
+        return window.setAuthMsg("Supabase não inicializado. Verifique assets/js/config.js.", false);
+      }
+
+      window.setAuthMsg("A verificar credenciais...", true);
+      try {
+        var res = await sb.auth.signInWithPassword({ email: email, password: password });
+        if (res.error) {
+          return window.setAuthMsg("Erro ao entrar: " + res.error.message, false);
+        }
+
+        var profRes = await sb.from("profiles").select("*").eq("id", res.data.user.id).single();
+        var profile = profRes.data;
+
+        if (profRes.error || !profile) {
+          return window.setAuthMsg("Perfil não encontrado: " + (profRes.error ? profRes.error.message : "sem registo na tabela profiles"), false);
+        }
+
+        if (profile.role === "admin") {
+          window.location.href = "admin.html";
+          return;
+        }
+
+        if (!profile.ativo) {
+          return window.setAuthMsg("A sua conta ainda não foi ativada pelo administrador.", false);
+        }
+
+        if (typeof openWorkspace === "function") {
+          openWorkspace(profile);
+        } else {
+          document.getElementById("auth-section")?.classList.add("hidden");
+          document.getElementById("app-section")?.classList.remove("hidden");
+          var emailEl = document.getElementById("user-email");
+          if (emailEl) emailEl.textContent = profile.email;
+        }
+      } catch (err) {
+        window.setAuthMsg("Falha inesperada no login: " + (err && err.message ? err.message : err), false);
+      }
+    };
+
     window.handleRegisterSubmit = async function() {
       var nome = (document.getElementById("reg-nome")?.value || "").trim();
       var email = (document.getElementById("reg-email")?.value || "").trim();
@@ -280,8 +324,8 @@
       }
     };
   </script>
-  <script src="assets/js/config.js?v=20261121c"></script>
-  <script src="assets/js/auth.js?v=20261121c"></script>
-  <script src="assets/js/app.js?v=20261121c"></script>
+  <script src="assets/js/config.js?v=20261121d"></script>
+  <script src="assets/js/auth.js?v=20261121d"></script>
+  <script src="assets/js/app.js?v=20261121d"></script>
 </body>
 </html>
