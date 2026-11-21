@@ -7,21 +7,29 @@ function showAlert(id, msg, type = "error") {
 
 function isAccessAllowed(profile) {
   if (!profile || !profile.ativo) {
-    return { ok: false, reason: "Sua conta está desativada. Fale com o administrador." };
+    return { ok: false, reason: "A sua conta está desativada. Fale com o administrador." };
   }
   const today = new Date().toISOString().split("T")[0];
   if (profile.data_inicio && today < profile.data_inicio) {
-    return { ok: false, reason: `Seu acesso será liberado em ${profile.data_inicio}.` };
+    return { ok: false, reason: `O seu acesso será libertado em ${profile.data_inicio}.` };
   }
   if (profile.data_fim && today > profile.data_fim) {
-    return { ok: false, reason: `Seu acesso expirou em ${profile.data_fim}.` };
+    return { ok: false, reason: `O seu acesso expirou em ${profile.data_fim}.` };
   }
   return { ok: true };
 }
 
 async function loginUser(email, password) {
+  showAlert("auth-alert", "A verificar credenciais...", "success");
+
+  if (typeof sb === "undefined" || !sb) {
+    return showAlert("auth-alert", "Erro de configuração do Supabase (config.js).");
+  }
+
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) return showAlert("auth-alert", "E-mail ou senha inválidos.");
+  if (error) {
+    return showAlert("auth-alert", error.message || "E-mail ou senha inválidos.");
+  }
 
   const { data: profile, error: pErr } = await sb
     .from("profiles")
@@ -31,7 +39,7 @@ async function loginUser(email, password) {
 
   if (pErr || !profile) {
     await sb.auth.signOut();
-    return showAlert("auth-alert", "Perfil não encontrado.");
+    return showAlert("auth-alert", "Perfil não encontrado na tabela profiles.");
   }
 
   if (profile.role === "admin") {
@@ -67,13 +75,16 @@ async function registerUser(nome, email, whatsapp, password) {
 }
 
 async function recoverPassword(email) {
-  const redirectTo = window.location.origin + window.location.pathname.replace("index.html", "") + "redefinir-senha.html";
+  const basePath = window.location.pathname.replace(/\/[^/]*$/, "/");
+  const redirectTo = window.location.origin + basePath + "redefinir-senha.html";
   const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
   if (error) return showAlert("auth-alert", error.message);
-  showAlert("auth-alert", "Enviamos um link de recuperação para seu e-mail.", "success");
+  showAlert("auth-alert", "Enviámos uma ligação de recuperação para o seu e-mail.", "success");
 }
 
 async function logoutUser() {
-  await sb.auth.signOut();
+  if (typeof sb !== "undefined" && sb) {
+    await sb.auth.signOut();
+  }
   window.location.href = "index.html";
 }

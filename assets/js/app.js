@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", () => {
   const formLogin = document.getElementById("login-form");
   const formRegister = document.getElementById("register-form");
   const formRecover = document.getElementById("recover-form");
@@ -29,8 +29,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 function switchTab(tab) {
   ["login-form", "register-form", "recover-form"].forEach(id => {
-    document.getElementById(id).classList.add("hidden");
+    document.getElementById(id)?.classList.add("hidden");
   });
-  document.getElementById(`${tab}-form`).classList.remove("hidden");
-  document.getElementById("auth-alert").classList.remove("show");
+  document.getElementById(`${tab}-form`)?.classList.remove("hidden");
+  document.getElementById("auth-alert")?.classList.remove("show");
 }
