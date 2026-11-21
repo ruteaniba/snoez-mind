@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Redefinir Senha - SnoezMind</title>
+  <link rel="stylesheet" href="assets/css/style.css?v=20261121k">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="container" style="max-width:440px; margin-top:24px;">
+    <div class="card">
+      <h1>SnoezMind</h1>
+      <p class="subtitle">Defina a sua nova senha de acesso</p>
+      <div id="auth-alert" class="alert"></div>
+
+      <form id="reset-form" onsubmit="event.preventDefault(); handleResetSubmit();">
+        <div class="field">
+          <label for="new-pass">Nova Senha</label>
+          <input id="new-pass" type="password" minlength="6" placeholder="Mínimo 6 caracteres" required>
+        </div>
+        <div class="field">
+          <label for="confirm-pass">Confirmar Nova Senha</label>
+          <input id="confirm-pass" type="password" minlength="6" placeholder="Repita a senha" required>
+        </div>
+        <button type="submit" class="btn btn-gold">Salvar Nova Senha</button>
+        <div class="links-row">
+          <a href="index.html" class="link-btn" style="text-decoration:none;">Voltar para o Login</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="assets/js/config.js?v=20261121k"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      if (typeof sb !== "undefined" && sb) {
+        // Verifica se o usuário veio de um link válido de recuperação
+        sb.auth.onAuthStateChange((event) => {
+          if (event === "PASSWORD_RECOVERY") {
+            document.getElementById("auth-alert").textContent = "Link verificado! Digite a nova senha.";
+            document.getElementById("auth-alert").className = "alert show success";
+          }
+        });
+      }
+    });
+
+    async function handleResetSubmit() {
+      const newPass = document.getElementById("new-pass").value;
+      const confirmPass = document.getElementById("confirm-pass").value;
+      const alertEl = document.getElementById("auth-alert");
+
+      if (newPass !== confirmPass) {
+        alertEl.textContent = "As senhas não coincidem.";
+        alertEl.className = "alert show error";
+        return;
+      }
+
+      if (newPass.length < 6) {
+        alertEl.textContent = "A senha deve ter pelo menos 6 caracteres.";
+        alertEl.className = "alert show error";
+        return;
+      }
+
+      alertEl.textContent = "A guardar nova senha...";
+      alertEl.className = "alert show success";
+
+      const { data, error } = await sb.auth.updateUser({ password: newPass });
+
+      if (error) {
+        alertEl.textContent = "Erro ao redefinir: " + error.message;
+        alertEl.className = "alert show error";
+      } else {
+        alertEl.textContent = "Senha alterada com sucesso! A redirecionar...";
+        alertEl.className = "alert show success";
+        setTimeout(() => window.location.href = "index.html", 2000);
+      }
+    }
+  </script>
+</body>
+</html>
