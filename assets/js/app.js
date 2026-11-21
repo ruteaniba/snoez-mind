@@ -2,89 +2,57 @@ let speechEnabled = true;
 let childrenList = [];
 let selectedChildId = "";
 let gameState = null;
-let appInitialized = false;
 
-function initApp() {
-  if (appInitialized) return;
-  appInitialized = true;
-
-  const formLogin = document.getElementById("login-form");
-  const formRegister = document.getElementById("register-form");
-  const formRecover = document.getElementById("recover-form");
-  const childForm = document.getElementById("child-form");
-  const clientForm = document.getElementById("client-form");
-
-  formLogin?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const email = document.getElementById("login-email")?.value.trim() || "";
-    const pass = document.getElementById("login-pass")?.value || "";
-    if (typeof loginUser === "function") {
-      loginUser(email, pass);
-    } else if (typeof showAlert === "function") {
-      showAlert("auth-alert", "Erro ao carregar auth.js.");
-    }
-  });
-
-  formRegister?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    if (typeof registerUser === "function") {
-      registerUser(
-        document.getElementById("reg-nome")?.value.trim() || "",
-        document.getElementById("reg-email")?.value.trim() || "",
-        document.getElementById("reg-whatsapp")?.value.trim() || "",
-        document.getElementById("reg-pass")?.value || ""
-      );
-    }
-  });
-
-  formRecover?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    if (typeof recoverPassword === "function") {
-      recoverPassword(document.getElementById("rec-email")?.value.trim() || "");
-    }
-  });
-
-  childForm?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    await saveChild();
-  });
-
-  clientForm?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    await saveClient();
-  });
-
-  checkExistingSession();
-}
-
-async function checkExistingSession() {
-  if (typeof sb === "undefined" || !sb) return;
-  try {
-    const { data: { session } } = await sb.auth.getSession();
-    if (session && document.getElementById("app-section")) {
-      const { data: profile } = await sb
-        .from("profiles")
-        .select("*")
-        .eq("id", session.user.id)
-        .single();
-
-      if (profile) {
-        const check = profile.role === "admin" ? { ok: true } : isAccessAllowed(profile);
-        if (check.ok) {
-          openWorkspace(profile);
-        }
-      }
-    }
-  } catch (err) {
-    console.error("Erro ao verificar sessão:", err);
+function handleLoginSubmit() {
+  const email = document.getElementById("login-email")?.value.trim() || "";
+  const pass = document.getElementById("login-pass")?.value || "";
+  if (typeof loginUser === "function") {
+    loginUser(email, pass);
+  } else if (typeof window.handleLoginSubmit === "function") {
+    window.handleLoginSubmit();
   }
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initApp);
-} else {
-  initApp();
+function handleRegisterSubmit() {
+  if (typeof registerUser === "function") {
+    registerUser(
+      document.getElementById("reg-nome")?.value.trim() || "",
+      document.getElementById("reg-email")?.value.trim() || "",
+      document.getElementById("reg-whatsapp")?.value.trim() || "",
+      document.getElementById("reg-pass")?.value || ""
+    );
+  }
 }
+
+function handleRecoverSubmit() {
+  if (typeof recoverPassword === "function") {
+    recoverPassword(document.getElementById("rec-email")?.value.trim() || "");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  if (typeof sb !== "undefined" && sb) {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session && document.getElementById("app-section")) {
+        const { data: profile } = await sb
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .single();
+
+        if (profile) {
+          const check = profile.role === "admin" ? { ok: true } : isAccessAllowed(profile);
+          if (check.ok) {
+            openWorkspace(profile);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao verificar sessão:", err);
+    }
+  }
+});
 
 function openWorkspace(profile) {
   document.getElementById("auth-section")?.classList.add("hidden");
@@ -92,7 +60,12 @@ function openWorkspace(profile) {
   const emailEl = document.getElementById("user-email");
   if (emailEl) emailEl.textContent = profile.email;
   if (profile.role === "admin") {
-    document.getElementById("admin-link")?.classList.remove("hidden");
+    const adminLink = document.getElementById("admin-link");
+    if (adminLink) {
+      adminLink.classList.remove("hidden");
+      adminLink.textContent = "Painel Admin";
+      adminLink.href = "admin.html";
+    }
   }
   loadChildren();
   loadReports();

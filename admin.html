@@ -1,17 +1,17 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>SnoezMind Admin</title>
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261121e">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <header class="topbar">
     <span class="brand">SnoezMind Admin</span>
-    <div style="display:flex; gap:8px;">
-      <a href="index.html" class="btn btn-outline btn-sm" style="text-decoration:none;">App</a>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <a href="index.html?view=client" class="btn btn-gold btn-sm" style="width:auto; text-decoration:none;">Painel do Cliente</a>
       <button class="btn btn-outline btn-sm" onclick="logoutUser()">Sair</button>
     </div>
   </header>
@@ -33,14 +33,14 @@
             </tr>
           </thead>
           <tbody id="users-tbody">
-            <tr><td colspan="6">A carregar utilizadores...</td></tr>
+            <tr><td colspan="6">Carregando usuários...</td></tr>
           </tbody>
         </table>
       </div>
     </div>
   </main>
-  <script src="assets/js/config.js"></script>
-  <script src="assets/js/auth.js"></script>
-  <script src="assets/js/admin.js"></script>
+  <script src="assets/js/config.js?v=20261121e"></script>
+  <script src="assets/js/auth.js?v=20261121e"></script>
+  <script src="assets/js/admin.js?v=20261121e"></script>
 </body>
 </html>
