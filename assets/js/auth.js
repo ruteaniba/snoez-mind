@@ -39,7 +39,7 @@ async function loginUser(email, password) {
 
   if (pErr || !profile) {
     await sb.auth.signOut();
-    return showAlert("auth-alert", "pErr ? pErr.message : "Perfil não encontrado na tabela profiles."");
+    return showAlert("auth-alert", pErr ? pErr.message : "Perfil não encontrado na tabela profiles.");
   }
 
   if (profile.role === "admin") {
@@ -53,9 +53,14 @@ async function loginUser(email, password) {
     return showAlert("auth-alert", check.reason);
   }
 
-  document.getElementById("auth-section").classList.add("hidden");
-  document.getElementById("app-section").classList.remove("hidden");
-  document.getElementById("user-email").textContent = profile.email;
+  if (typeof openWorkspace === "function") {
+    openWorkspace(profile);
+  } else {
+    document.getElementById("auth-section")?.classList.add("hidden");
+    document.getElementById("app-section")?.classList.remove("hidden");
+    const emailEl = document.getElementById("user-email");
+    if (emailEl) emailEl.textContent = profile.email;
+  }
 }
 
 async function registerUser(nome, email, whatsapp, password) {
