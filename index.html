@@ -188,7 +188,7 @@
       </section>
 
       <section id="tab-emocional" class="card hidden">
-        <h3>Terapia Emocional — Cadastro de Clientes e Anamnese</h3>
+        <h3>Terapia Emocional — Gestão de Pacientes e Anamnese</h3>
         <p class="subtitle">Registre clientes e mantenha a anamnese organizada e atualizada.</p>
 
         <form id="client-form" onsubmit="event.preventDefault(); saveClient();">
@@ -216,12 +216,12 @@
             <textarea id="client-anamnese" placeholder="Escreva aqui os detalhes da anamnese..."></textarea>
           </div>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button type="submit" class="btn btn-gold" style="max-width:260px;">Salvar Cliente & Anamnese</button>
+            <button type="submit" class="btn btn-gold" style="max-width:260px;">Salvar Prontuário</button>
             <button type="button" class="btn btn-outline" onclick="resetClientForm()">Limpar Campos</button>
           </div>
         </form>
 
-        <h3 style="margin-top:22px;">Clientes Cadastrados</h3>
+        <h3 style="margin-top:22px;">Pacientes Cadastrados</h3>
         <div class="table-wrap">
           <table>
             <thead>
@@ -242,5 +242,6 @@
 
   <script src="assets/js/config.js?v=20261121k"></script>
   <script src="assets/js/app.js?v=20261121k"></script>
+  <script src="assets/js/puzzle.js"></script>
 </body>
 </html>

@@ -287,7 +287,7 @@ function startGame(type) {
     speak(type === "pareamento_sobras" ? "Pareamento com sobras. Encontre os pares iguais." : "Pareamento colorido. Encontre as cores iguais.");
     renderPairGame();
   } else if (type === "quebra_cabeca") {
-    gameState.puzzleOrder = shuf([1, 2, 3, 4]); speak("Quebra-cabeça. Toque nas peças na ordem de 1 a 4."); renderPuzzleGame();
+    startRealPuzzle();
   } else if (type === "identificacao_imagem") {
     var bank = [{ icon: "🐶", word: "Cachorro" }, { icon: "🐱", word: "Gato" }, { icon: "🍎", word: "Maçã" }, { icon: "🚗", word: "Carro" }, { icon: "⭐", word: "Estrela" }];
     gameState.target = bank[Math.floor(Math.random() * bank.length)]; gameState.options = shuf(bank);

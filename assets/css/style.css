@@ -296,3 +296,26 @@ th {
 .badge-off { background: #FEE2E2; color: var(--danger); }
 .actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .hidden { display: none !important; }
+
+.puzzle-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 100px);
+  grid-template-rows: repeat(3, 100px);
+  gap: 2px;
+  justify-content: center;
+  margin: 20px auto;
+  background: #eee;
+  padding: 5px;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+.puzzle-piece {
+  width: 100px;
+  height: 100px;
+  background-color: #fff;
+  border-radius: 4px;
+  cursor: grab;
+  transition: transform 0.2s, opacity 0.2s;
+}
+.puzzle-piece:active { cursor: grabbing; }
+.puzzle-piece.dragging { opacity: 0.5; transform: scale(0.95); }
