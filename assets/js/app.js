@@ -32,7 +32,7 @@ function playError() {
 }
 
 async function finishGame(gameName, acertos, tentativas, duration) {
-  const score = tentativas > 0 ? Math.round((acertos / tentativas) * 100) : 0;
+  const score = tentativas > 0 ? Math.min(100, Math.round((acertos / tentativas) * 100)) : 0;
   playSuccess();
   
   const overlay = document.createElement("div");
@@ -46,7 +46,7 @@ async function finishGame(gameName, acertos, tentativas, duration) {
       <h2 style="margin-top:0; margin-bottom:5px; font-size:1.2rem; color:#333;">Fim do Jogo!</h2>
       <p style="margin:5px 0; color:#555;"><strong>${gameName}</strong></p>
       <div class="score" style="font-size:1.8rem; font-weight:bold; color:#EAB308; margin:5px 0;">${score}%</div>
-      <p style="margin:5px 0; font-size:0.9rem; color:#666;">Acertos: ${acertos} | Erros: ${tentativas - acertos} | Tempo: ${duration}s</p>
+      <p style="margin:5px 0; font-size:0.9rem; color:#666;">Acertos: ${acertos} | Erros: ${Math.max(0, tentativas - acertos)} | Tempo: ${duration}s</p>
       <div style="display:flex; gap:10px; justify-content:center; margin-top:10px;">
         <button class="btn btn-gold btn-sm" onclick="this.closest('.game-modal-overlay').remove(); startGame('${gameName.toLowerCase().includes('identifica') ? 'identificacao_imagem' : (gameName.toLowerCase().includes('conceito') ? 'identificacao_conceitos' : (gameName.toLowerCase().includes('quebra') ? 'quebra_cabeca' : 'pareamento_cores'))}')">Jogar Novamente</button>
         <button class="btn btn-outline btn-sm" onclick="this.closest('.game-modal-overlay').remove();">Fechar</button>
