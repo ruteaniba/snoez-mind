@@ -2,8 +2,12 @@ let speechEnabled = true;
 let childrenList = [];
 let selectedChildId = "";
 let gameState = null;
+let appInitialized = false;
 
-document.addEventListener("DOMContentLoaded", async () => {
+function initApp() {
+  if (appInitialized) return;
+  appInitialized = true;
+
   const formLogin = document.getElementById("login-form");
   const formRegister = document.getElementById("register-form");
   const formRecover = document.getElementById("recover-form");
@@ -12,25 +16,32 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   formLogin?.addEventListener("submit", (e) => {
     e.preventDefault();
-    loginUser(
-      document.getElementById("login-email").value.trim(),
-      document.getElementById("login-pass").value
-    );
+    const email = document.getElementById("login-email")?.value.trim() || "";
+    const pass = document.getElementById("login-pass")?.value || "";
+    if (typeof loginUser === "function") {
+      loginUser(email, pass);
+    } else if (typeof showAlert === "function") {
+      showAlert("auth-alert", "Erro ao carregar auth.js.");
+    }
   });
 
   formRegister?.addEventListener("submit", (e) => {
     e.preventDefault();
-    registerUser(
-      document.getElementById("reg-nome").value.trim(),
-      document.getElementById("reg-email").value.trim(),
-      document.getElementById("reg-whatsapp").value.trim(),
-      document.getElementById("reg-pass").value
-    );
+    if (typeof registerUser === "function") {
+      registerUser(
+        document.getElementById("reg-nome")?.value.trim() || "",
+        document.getElementById("reg-email")?.value.trim() || "",
+        document.getElementById("reg-whatsapp")?.value.trim() || "",
+        document.getElementById("reg-pass")?.value || ""
+      );
+    }
   });
 
   formRecover?.addEventListener("submit", (e) => {
     e.preventDefault();
-    recoverPassword(document.getElementById("rec-email").value.trim());
+    if (typeof recoverPassword === "function") {
+      recoverPassword(document.getElementById("rec-email")?.value.trim() || "");
+    }
   });
 
   childForm?.addEventListener("submit", async (e) => {
@@ -43,7 +54,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     await saveClient();
   });
 
-  if (typeof sb !== "undefined" && sb) {
+  checkExistingSession();
+}
+
+async function checkExistingSession() {
+  if (typeof sb === "undefined" || !sb) return;
+  try {
     const { data: { session } } = await sb.auth.getSession();
     if (session && document.getElementById("app-section")) {
       const { data: profile } = await sb
@@ -59,8 +75,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       }
     }
+  } catch (err) {
+    console.error("Erro ao verificar sessão:", err);
   }
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initApp);
+} else {
+  initApp();
+}
 
 function openWorkspace(profile) {
   document.getElementById("auth-section")?.classList.add("hidden");
@@ -319,7 +343,6 @@ async function deleteClient(id) {
   loadClients();
 }
 
-/* ================= JOGOS TERAPÊUTICOS ================= */
 function startGame(type) {
   const startedAt = Date.now();
   gameState = {
