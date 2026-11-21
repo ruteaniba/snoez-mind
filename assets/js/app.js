@@ -4,50 +4,55 @@ let clientsCache = [];
 let selectedChildId = "";
 let gameState = null;
 const CREDS_KEY = "snoezmind_saved_creds_v1";
+const TARGET_CORRECT = 7;
 
-// === SISTEMA DE ÁUDIO (Efeitos Sonoros) ===
-function playTone(freq, type, duration) {
+function playTone(freq, type, duration, volume = 0.1) {
   if (!speechEnabled) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
     osc.type = type;
     osc.frequency.value = freq;
-    osc.connect(ctx.destination);
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + duration);
   } catch (e) {}
 }
-function playSuccess() { playTone(600, "sine", 0.1); setTimeout(() => playTone(800, "sine", 0.2), 100); }
-function playError() { playTone(200, "sawtooth", 0.2); }
 
-// === SISTEMA DE VOZ FEMININA ===
+function playSuccess() { 
+  playTone(523.25, "sine", 0.4, 0.08); 
+  setTimeout(() => playTone(659.25, "sine", 0.4, 0.08), 100); 
+  setTimeout(() => playTone(783.99, "sine", 0.6, 0.08), 200); 
+}
+
+function playError() { 
+  playTone(180, "triangle", 0.3, 0.06); 
+}
+
 function speak(text) {
   if (!speechEnabled || !("speechSynthesis" in window)) return;
   window.speechSynthesis.cancel();
   var utter = new SpeechSynthesisUtterance(text);
   utter.lang = "pt-BR";
-  
-  // Tenta buscar uma voz feminina no sistema
   var voices = window.speechSynthesis.getVoices();
   var femaleVoice = voices.find(v => 
     v.lang.includes("pt") && 
     (v.name.includes("Maria") || v.name.includes("Luciana") || v.name.includes("Helena") || v.name.includes("Zira") || v.name.includes("Female") || v.name.includes("Google"))
   );
-  
   if (femaleVoice) utter.voice = femaleVoice;
-  utter.pitch = 1.1; // Deixa o tom levemente mais agudo
+  utter.pitch = 1.1;
   window.speechSynthesis.speak(utter);
 }
-// Força o carregamento das vozes no navegador
 if ("speechSynthesis" in window) { window.speechSynthesis.getVoices(); }
 
-// === SISTEMA DE PONTUAÇÃO E FIM DE JOGO ===
 async function finishGame(gameName, acertos, tentativas, duration) {
   const score = tentativas > 0 ? Math.round((acertos / tentativas) * 100) : 0;
   playSuccess();
   speak("Fim de jogo! Sua pontuação foi de " + score + " por cento.");
-  
   const overlay = document.createElement("div");
   overlay.className = "game-modal-overlay";
   overlay.innerHTML = `
@@ -57,16 +62,14 @@ async function finishGame(gameName, acertos, tentativas, duration) {
       <div class="score">${score}%</div>
       <p>Acertos: ${acertos} | Erros: ${tentativas - acertos}</p>
       <p>Tempo: ${duration} segundos</p>
-      <button class="btn btn-gold" onclick="this.closest('.game-modal-overlay').remove(); startGame('identificacao_imagem')">Jogar Novamente</button>
+      <button class="btn btn-gold" onclick="this.closest('.game-modal-overlay').remove(); startGame('${gameName.toLowerCase().includes('identifica') ? 'identificacao_imagem' : 'pareamento_cores'}')">Jogar Novamente</button>
     </div>
   `;
   document.body.appendChild(overlay);
   setTimeout(() => overlay.classList.add("show"), 10);
-
   await recordGameSession(gameName, acertos, tentativas, duration);
 }
 
-// === FUNÇÕES DO SISTEMA ===
 function setAuthAlert(msg, isOk) {
   const el = document.getElementById("auth-alert");
   if (!el) return;
@@ -167,25 +170,19 @@ async function handleLoginSubmit() {
   var email = (document.getElementById("login-email")?.value || "").trim();
   var password = document.getElementById("login-pass")?.value || "";
   if (typeof sb === "undefined" || !sb || !sb.auth) return setAuthAlert("Erro: cliente Supabase não inicializado.", false);
-  
   saveOrClearCreds(email, password);
   setAuthAlert("A verificar credenciais...", true);
-  
   try {
     var res = await sb.auth.signInWithPassword({ email: email, password: password });
     if (res.error) return setAuthAlert("Erro ao entrar: " + res.error.message, false);
-    
     var profRes = await sb.from("profiles").select("*").eq("id", res.data.user.id).single();
     var profile = profRes.data;
-    
     if (profRes.error || !profile) return setAuthAlert("Autenticado, mas sem perfil.", false);
     if (profile.role === "admin") { window.location.href = "admin.html"; return; }
     if (!profile.ativo) { await sb.auth.signOut(); return setAuthAlert("A sua conta ainda não foi ativada.", false); }
-    
     var today = new Date().toISOString().split("T")[0];
     if (profile.data_inicio && today < profile.data_inicio) { await sb.auth.signOut(); return setAuthAlert("Acesso será liberado em " + profile.data_inicio, false); }
     if (profile.data_fim && today > profile.data_fim) { await sb.auth.signOut(); return setAuthAlert("Acesso expirou em " + profile.data_fim, false); }
-    
     openWorkspace(profile);
   } catch (err) { setAuthAlert("Falha no login: " + (err && err.message ? err.message : err), false); }
 }
@@ -196,7 +193,6 @@ async function handleRegisterSubmit() {
   var whatsapp = (document.getElementById("reg-whatsapp")?.value || "").replace(/\D/g, "");
   var password = document.getElementById("reg-pass")?.value || "";
   if (typeof sb === "undefined" || !sb || !sb.auth) return setAuthAlert("Erro: cliente Supabase não inicializado.", false);
-  
   setAuthAlert("A enviar cadastro...", true);
   try {
     var res = await sb.auth.signUp({ email, password, options: { data: { nome, whatsapp } } });
@@ -214,7 +210,6 @@ async function handleRecoverSubmit() {
   setAuthAlert("Enviámos uma ligação para o seu e-mail.", true);
 }
 
-// === BANCO DE DADOS ===
 async function loadChildren() {
   if (typeof sb === "undefined" || !sb) return;
   var uRes = await sb.auth.getUser(); var user = uRes && uRes.data ? uRes.data.user : null;
@@ -329,10 +324,8 @@ async function deleteClient(id) {
   showAppAlert("Removido."); loadClients();
 }
 
-// === SISTEMA DE NÍVEIS E JOGOS ===
 function startGame(type, level = 1) {
-  gameState = { type: type, level: level, startedAt: Date.now(), acertos: 0, tentativas: 0, selected: null, matchedIds: [], totalAcertos: level > 1 ? gameState.totalAcertos : 0, totalTentativas: level > 1 ? gameState.totalTentativas : 0 };
-  
+  gameState = { type: type, level: level, startedAt: Date.now(), acertos: 0, tentativas: 0, selected: null, matchedIds: [], levelCorrects: 0, totalAcertos: level > 1 ? (gameState?.totalAcertos || 0) : 0, totalTentativas: level > 1 ? (gameState?.totalTentativas || 0) : 0 };
   if (type === "pareamento_cores" || type === "pareamento_sobras") {
     var base = [
       { key: "Vermelho", color: "#EF4444", label: "Vermelho" }, { key: "Azul", color: "#3B82F6", label: "Azul" },
@@ -378,7 +371,6 @@ function startGame(type, level = 1) {
   }
 }
 
-// --- JOGO: PARES ---
 function renderPairGame() {
   var board = document.getElementById("game-board");
   var btns = [];
@@ -393,50 +385,50 @@ function renderPairGame() {
 async function clickPairTile(id) {
   if (gameState.matchedIds.indexOf(id) !== -1 || gameState.selected === id) return;
   var clicked = gameState.items.find(function(x) { return x.id === id; });
-  
   if (!gameState.selected) { gameState.selected = id; speak(clicked.label); renderPairGame(); return; }
-  
   var prev = gameState.items.find(function(x) { return x.id === gameState.selected; });
   gameState.tentativas += 1; gameState.totalTentativas++; gameState.selected = null;
-  
   if (prev.key === clicked.key) {
-    gameState.acertos += 1; gameState.totalAcertos++; gameState.matchedIds.push(prev.id, clicked.id); playSuccess();
-    if (gameState.matchedIds.length / 2 === gameState.totalPairs) {
-      var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-      finishGame("Pareamento", gameState.totalAcertos, gameState.totalTentativas, dur);
+    gameState.acertos += 1; gameState.totalAcertos++; gameState.levelCorrects++; gameState.matchedIds.push(prev.id, clicked.id); playSuccess();
+    if (gameState.levelCorrects >= TARGET_CORRECT) {
+      speak("Parabéns! Você passou para o nível " + (gameState.level + 1));
+      setTimeout(() => startGame(gameState.type, gameState.level + 1), 2000);
+    } else if (gameState.matchedIds.length / 2 === gameState.totalPairs) {
+      speak("Muito bem! Continuando para a próxima rodada.");
+      setTimeout(() => startGame(gameState.type, gameState.level), 2000);
     }
   } else { playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); }
   renderPairGame();
 }
 
-// --- JOGO: QUEBRA-CABEÇA REAL 3x3 ---
 let puzzlePieces = []; let puzzleSolved = false;
 const puzzleImages = [
-  "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&h=400&fit=crop", // Gato
-  "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400&h=400&fit=crop", // Cachorro
-  "https://images.unsplash.com/photo-1557050543-4d5f4e07ef46?w=400&h=400&fit=crop", // Elefante
-  "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=400&h=400&fit=crop", // Gato 2
-  "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=400&fit=crop", // Cachorro 2
-  "https://images.unsplash.com/photo-1474511320723-9a56873867b5?w=400&h=400&fit=crop", // Raposa
-  "https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=400&h=400&fit=crop", // Panda
-  "https://images.unsplash.com/photo-1591871937573-74dbba515c4c?w=400&h=400&fit=crop", // Coala
-  "https://images.unsplash.com/photo-1534188753412-3e26d0d618d6?w=400&h=400&fit=crop", // Lobo
-  "https://images.unsplash.com/photo-1552410260-0fd9b577afa6?w=400&h=400&fit=crop", // Leão
-  "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400&h=400&fit=crop", // Pug
-  "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400&h=400&fit=crop", // Gato 3
-  "https://images.unsplash.com/photo-1529778873920-4da4926a72c2?w=400&h=400&fit=crop", // Gato 4
-  "https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?w=400&h=400&fit=crop", // Cachorro 3
-  "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=400&h=400&fit=crop", // Cachorro 4
-  "https://images.unsplash.com/photo-1548247416-ec66f4900b2e?w=400&h=400&fit=crop", // Tigre
-  "https://images.unsplash.com/photo-1507666405895-422eee7d517f?w=400&h=400&fit=crop", // Macaco
-  "https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=400&fit=crop", // Hamster
-  "https://images.unsplash.com/photo-1596706589401-13f9fb8b7998?w=400&h=400&fit=crop", // Papagaio
-  "https://images.unsplash.com/photo-1555169062-013468b47731?w=400&h=400&fit=crop"  // Coruja
+  "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1557050543-4d5f4e07ef46?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1474511320723-9a56873867b5?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1591871937573-74dbba515c4c?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1534188753412-3e26d0d618d6?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1552410260-0fd9b577afa6?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1529778873920-4da4926a72c2?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1548247416-ec66f4900b2e?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1507666405895-422eee7d517f?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1596706589401-13f9fb8b7998?w=400&h=400&fit=crop",
+  "https://images.unsplash.com/photo-1555169062-013468b47731?w=400&h=400&fit=crop"
 ];
 
 function startRealPuzzle() {
-  gameState = { type: "quebra_cabeca", startedAt: Date.now(), acertos: 0, tentativas: 0 };
+  gameState = { type: "quebra_cabeca", level: 1, startedAt: Date.now(), acertos: 0, tentativas: 0, levelCorrects: 0 };
   puzzleSolved = false;
+  gameState.currentPuzzleImage = puzzleImages[Math.floor(Math.random() * puzzleImages.length)];
   puzzlePieces = [0, 1, 2, 3, 4, 5, 6, 7, 8].sort(() => Math.random() - 0.5);
   speak("Quebra-cabeça. Arraste as peças para montar a imagem.");
   renderRealPuzzle();
@@ -444,7 +436,7 @@ function startRealPuzzle() {
 
 function renderRealPuzzle() {
   const board = document.getElementById("game-board");
-  const imgUrl = puzzleImages[Math.floor(Math.random() * puzzleImages.length)];
+  const imgUrl = gameState.currentPuzzleImage || puzzleImages[0];
   let html = `
     <div style="text-align:center; margin-bottom:15px;">
       <button class="btn btn-outline btn-sm" onclick="startRealPuzzle()">Trocar Imagem / Embaralhar</button>
@@ -473,17 +465,13 @@ async function dropPiece(e) {
   const draggedIndex = parseInt(e.dataTransfer.getData("text/plain"));
   const target = e.target.closest(".puzzle-piece"); if (!target) return;
   const droppedIndex = parseInt(target.getAttribute("data-index"));
-  
   if (draggedIndex !== droppedIndex) {
     const temp = puzzlePieces[draggedIndex]; puzzlePieces[draggedIndex] = puzzlePieces[droppedIndex]; puzzlePieces[droppedIndex] = temp;
     gameState.tentativas++;
     document.querySelector(".dragging")?.classList.remove("dragging");
-    
-    // Toca som de acerto se a peça arrastada caiu no lugar certo
     if (puzzlePieces[draggedIndex] === draggedIndex || puzzlePieces[droppedIndex] === droppedIndex) {
-      playSuccess();
+      playTone(600, "sine", 0.1, 0.05);
     }
-    
     renderRealPuzzle();
     checkPuzzleSolved();
   }
@@ -493,33 +481,45 @@ async function checkPuzzleSolved() {
   if (puzzleSolved) return;
   const isSolved = puzzlePieces.every((val, index) => val === index);
   if (isSolved) {
-    puzzleSolved = true; gameState.acertos = 9; // Considera 9 acertos para fechar
+    puzzleSolved = true; gameState.acertos = 9; 
     const dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
     finishGame("Quebra-Cabeça", gameState.acertos, gameState.tentativas + 1, dur);
   }
 }
 
-// --- JOGO: IDENTIFICAÇÃO DE IMAGEM ---
 function renderIdentifyGame() {
   var board = document.getElementById("game-board");
   var btns = [];
   gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickIdentifyOption(\'' + opt.word + '\')"><span style="font-size:3rem;">' + opt.icon + '</span></button>'); });
-  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Encontre: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.word + '</span></strong><br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="speak(\'' + gameState.target.word + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '<br>Encontre: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.word + '</span></strong><br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="speak(\'' + gameState.target.word + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
 }
 
 async function clickIdentifyOption(word) {
   gameState.tentativas++; gameState.totalTentativas++;
   if (word === gameState.target.word) {
-    gameState.acertos++; gameState.totalAcertos++; playSuccess();
-    
-    if (gameState.level < 3) {
-      speak("Muito bem! Preparando nível " + (gameState.level + 1));
-      setTimeout(() => {
-        startGame("identificacao_imagem", gameState.level + 1);
-      }, 2000);
+    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; playSuccess();
+    if (gameState.levelCorrects >= TARGET_CORRECT) {
+      if (gameState.level < 3) {
+        speak("Muito bem! Você passou para o nível " + (gameState.level + 1));
+        setTimeout(() => { startGame("identificacao_imagem", gameState.level + 1); }, 2000);
+      } else {
+        var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
+        finishGame("Identificação de Imagem (3 Níveis)", gameState.totalAcertos, gameState.totalTentativas, dur);
+      }
     } else {
-      var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-      finishGame("Identificação de Imagem (3 Níveis)", gameState.totalAcertos, gameState.totalTentativas, dur);
+      speak("Muito bem! " + gameState.levelCorrects + " de " + TARGET_CORRECT);
+      setTimeout(() => {
+        var bank = [
+          { icon: "🐶", word: "Cachorro" }, { icon: "🐱", word: "Gato" }, { icon: "🍎", word: "Maçã" }, { icon: "🚗", word: "Carro" },
+          { icon: "⭐", word: "Estrela" }, { icon: "🐘", word: "Elefante" }, { icon: "🍌", word: "Banana" }, { icon: "✈️", word: "Avião" },
+          { icon: "🌻", word: "Girassol" }, { icon: "🐟", word: "Peixe" }, { icon: "🍇", word: "Uva" }, { icon: "🚲", word: "Bicicleta" },
+          { icon: "🦁", word: "Leão" }, { icon: "🍓", word: "Morango" }, { icon: "🚁", word: "Helicóptero" }, { icon: "🌈", word: "Arco-íris" }
+        ];
+        var maxOptions = gameState.level === 1 ? 4 : (gameState.level === 2 ? 6 : 9);
+        var options = shuf(bank).slice(0, maxOptions);
+        gameState.target = options[Math.floor(Math.random() * options.length)]; gameState.options = options;
+        speak("Encontre: " + gameState.target.word); renderIdentifyGame();
+      }, 1500);
     }
   } else {
     playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
@@ -527,7 +527,6 @@ async function clickIdentifyOption(word) {
   }
 }
 
-// --- JOGO: LIGAR IMAGENS ---
 function renderConnectGame() {
   var board = document.getElementById("game-board");
   var leftBtns = []; var rightBtns = [];
@@ -540,7 +539,7 @@ function renderConnectGame() {
     var done = gameState.matchedIds.indexOf(item.id) !== -1;
     rightBtns.push('<button type="button" class="tile-btn ' + (done ? "matched" : "") + '" onclick="selectRight(' + item.id + ')"><span style="font-size:2.5rem;">' + item.icon + '</span></button>');
   });
-  board.innerHTML = '<p class="subtitle">Toque na imagem da esquerda e depois na correspondente da direita.</p><div class="grid-2"><div class="tiles-grid">' + leftBtns.join("") + '</div><div class="tiles-grid">' + rightBtns.join("") + '</div></div>';
+  board.innerHTML = '<div style="text-align:center;margin-bottom:10px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '</strong></div><p class="subtitle">Toque na imagem da esquerda e depois na correspondente da direita.</p><div class="grid-2"><div class="tiles-grid">' + leftBtns.join("") + '</div><div class="tiles-grid">' + rightBtns.join("") + '</div></div>';
 }
 
 function selectLeft(id) { if (gameState.matchedIds.indexOf(id) !== -1) return; gameState.selectedLeft = id; renderConnectGame(); }
@@ -549,10 +548,13 @@ async function selectRight(id) {
   if (!gameState.selectedLeft || gameState.matchedIds.indexOf(id) !== -1) return;
   gameState.tentativas++; gameState.totalTentativas++;
   if (gameState.selectedLeft === id) {
-    gameState.acertos++; gameState.totalAcertos++; gameState.matchedIds.push(id); playSuccess(); speak("Boa ligação!");
-    if (gameState.matchedIds.length === gameState.pairs.length) {
-      var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-      finishGame("Ligar Imagens", gameState.totalAcertos, gameState.totalTentativas, dur);
+    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; gameState.matchedIds.push(id); playSuccess(); speak("Boa ligação!");
+    if (gameState.levelCorrects >= TARGET_CORRECT) {
+      speak("Parabéns! Você passou para o nível " + (gameState.level + 1));
+      setTimeout(() => startGame("ligar_imagens", gameState.level + 1), 2000);
+    } else if (gameState.matchedIds.length === gameState.pairs.length) {
+      speak("Muito bem! Continuando.");
+      setTimeout(() => startGame("ligar_imagens", gameState.level), 2000);
     }
   } else {
     playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); speak("Não combina.");
@@ -560,20 +562,33 @@ async function selectRight(id) {
   gameState.selectedLeft = null; renderConnectGame();
 }
 
-// --- JOGO: CONCEITOS ---
 function renderConceptsGame() {
   var board = document.getElementById("game-board");
   var btns = [];
   gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickConceptOption(\'' + opt.label + '\')"><span style="font-size:2.5rem;">' + opt.display + '</span></button>'); });
-  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Toque em: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.label + '</span></strong><br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="speak(\'' + gameState.target.label + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '<br>Toque em: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.label + '</span></strong><br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="speak(\'' + gameState.target.label + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
 }
 
 async function clickConceptOption(label) {
   gameState.tentativas++; gameState.totalTentativas++;
   if (label === gameState.target.label) {
-    gameState.acertos++; gameState.totalAcertos++; playSuccess();
-    var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-    finishGame("Letras, Números e Formas", gameState.totalAcertos, gameState.totalTentativas, dur);
+    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; playSuccess();
+    if (gameState.levelCorrects >= TARGET_CORRECT) {
+      speak("Muito bem! Você passou para o nível " + (gameState.level + 1));
+      setTimeout(() => startGame("identificacao_conceitos", gameState.level + 1), 2000);
+    } else {
+      speak("Muito bem! " + gameState.levelCorrects + " de " + TARGET_CORRECT);
+      setTimeout(() => {
+        var cBank = [
+          { display: "A", label: "Letra A" }, { display: "7", label: "Número 7" }, { display: "🔵", label: "Círculo azul" },
+          { display: "🔺", label: "Triângulo" }, { display: "🦋", label: "Borboleta" }, { display: "🟨", label: "Quadrado amarelo" },
+          { display: "B", label: "Letra B" }, { display: "3", label: "Número 3" }, { display: "🟩", label: "Quadrado verde" }, { display: "⭐", label: "Estrela" }
+        ];
+        var opts = shuf(cBank).slice(0, 6);
+        gameState.target = opts[Math.floor(Math.random() * opts.length)]; gameState.options = opts;
+        speak("Toque em: " + gameState.target.label); renderConceptsGame();
+      }, 1500);
+    }
   } else {
     playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
     speak("Tente de novo");
