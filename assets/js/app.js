@@ -5,6 +5,47 @@ let selectedChildId = "";
 let gameState = null;
 const CREDS_KEY = "snoezmind_saved_creds_v1";
 
+// === SISTEMA DE ÁUDIO (Efeitos Sonoros) ===
+function playTone(freq, type, duration) {
+  if (!speechEnabled) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.value = freq;
+    osc.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch (e) {}
+}
+function playSuccess() { playTone(600, "sine", 0.1); setTimeout(() => playTone(800, "sine", 0.2), 100); }
+function playError() { playTone(200, "sawtooth", 0.2); }
+
+// === SISTEMA DE PONTUAÇÃO E FIM DE JOGO ===
+async function finishGame(gameName, acertos, tentativas, duration) {
+  const score = tentativas > 0 ? Math.round((acertos / tentativas) * 100) : 0;
+  playSuccess();
+  speak("Fim de jogo! Sua pontuação foi de " + score + " por cento.");
+  
+  const overlay = document.createElement("div");
+  overlay.className = "game-modal-overlay";
+  overlay.innerHTML = `
+    <div class="game-modal">
+      <h2>Fim do Jogo!</h2>
+      <p><strong>${gameName}</strong></p>
+      <div class="score">${score}%</div>
+      <p>Acertos: ${acertos} | Erros: ${tentativas - acertos}</p>
+      <p>Tempo: ${duration} segundos</p>
+      <button class="btn btn-gold" onclick="this.closest('.game-modal-overlay').remove()">Jogar Novamente</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  setTimeout(() => overlay.classList.add("show"), 10);
+
+  await recordGameSession(gameName, acertos, tentativas, duration);
+}
+
+// === FUNÇÕES DO SISTEMA ===
 function setAuthAlert(msg, isOk) {
   const el = document.getElementById("auth-alert");
   if (!el) return;
@@ -133,9 +174,7 @@ async function handleLoginSubmit() {
     if (profile.data_fim && today > profile.data_fim) { await sb.auth.signOut(); return setAuthAlert("Acesso expirou em " + profile.data_fim, false); }
     
     openWorkspace(profile);
-  } catch (err) {
-    setAuthAlert("Falha no login: " + (err && err.message ? err.message : err), false);
-  }
+  } catch (err) { setAuthAlert("Falha no login: " + (err && err.message ? err.message : err), false); }
 }
 
 async function handleRegisterSubmit() {
@@ -162,6 +201,7 @@ async function handleRecoverSubmit() {
   setAuthAlert("Enviámos uma ligação para o seu e-mail.", true);
 }
 
+// === BANCO DE DADOS ===
 async function loadChildren() {
   if (typeof sb === "undefined" || !sb) return;
   var uRes = await sb.auth.getUser(); var user = uRes && uRes.data ? uRes.data.user : null;
@@ -171,7 +211,7 @@ async function loadChildren() {
   var sel = document.getElementById("active-child-select");
   if (sel) {
     var prev = sel.value;
-    var opts = ['<option value="">Sessão avulsa (sem criança vinculada)</option>'];
+    var opts = ['<option value="">Sessão avulsa (sem paciente vinculado)</option>'];
     childrenList.forEach(function(c) { opts.push('<option value="' + escapeHtml(c.id) + '">' + escapeHtml(c.nome) + (c.diagnostico ? " (" + escapeHtml(c.diagnostico) + ")" : "") + "</option>"); });
     sel.innerHTML = opts.join("");
     if (prev && childrenList.some(function(c) { return c.id === prev; })) sel.value = prev;
@@ -179,7 +219,7 @@ async function loadChildren() {
   }
   var tbody = document.getElementById("children-tbody");
   if (tbody) {
-    if (childrenList.length === 0) tbody.innerHTML = '<tr><td colspan="5">Nenhuma criança cadastrada.</td></tr>';
+    if (childrenList.length === 0) tbody.innerHTML = '<tr><td colspan="5">Nenhum paciente cadastrado.</td></tr>';
     else {
       var rows = [];
       childrenList.forEach(function(c) { rows.push('<tr><td><strong>' + escapeHtml(c.nome) + '</strong></td><td>' + escapeHtml(c.idade || "-") + '</td><td>' + escapeHtml(c.diagnostico || "-") + '</td><td>' + escapeHtml(c.observacoes || "-") + '</td><td><button type="button" class="btn btn-danger btn-sm" onclick="deleteChild(\'' + escapeHtml(c.id) + '\')">Excluir</button></td></tr>'); });
@@ -195,7 +235,7 @@ async function saveChild() {
   var payload = { user_id: user.id, nome: (document.getElementById("child-nome")?.value || "").trim(), idade: parseInt(document.getElementById("child-idade")?.value, 10) || null, diagnostico: (document.getElementById("child-diag")?.value || "").trim() || null, observacoes: (document.getElementById("child-obs")?.value || "").trim() || null };
   var res = await sb.from("criancas").insert(payload);
   if (res.error) return showAppAlert("Erro: " + res.error.message, "error");
-  document.getElementById("child-form")?.reset(); showAppAlert("Criança cadastrada!"); loadChildren();
+  document.getElementById("child-form")?.reset(); showAppAlert("Paciente cadastrado!"); loadChildren();
 }
 
 async function deleteChild(id) {
@@ -238,7 +278,7 @@ async function loadClients() {
   clientsCache = res.data || [];
   var tbody = document.getElementById("clients-tbody");
   if (!tbody) return;
-  if (clientsCache.length === 0) tbody.innerHTML = '<tr><td colspan="5">Nenhum cliente cadastrado.</td></tr>';
+  if (clientsCache.length === 0) tbody.innerHTML = '<tr><td colspan="5">Nenhum paciente cadastrado.</td></tr>';
   else {
     var htmlRows = [];
     clientsCache.forEach(function(cl, idx) { htmlRows.push('<tr><td><strong>' + escapeHtml(cl.nome) + '</strong></td><td>' + escapeHtml(cl.telefone || "-") + '<br><small>' + escapeHtml(cl.email || "") + '</small></td><td>' + escapeHtml(cl.queixa_principal || "-") + '</td><td><small>' + escapeHtml(cl.anamnese || "-") + '</small></td><td class="actions"><button type="button" class="btn btn-outline btn-sm" onclick="editClientByIndex(' + idx + ')">Editar</button><button type="button" class="btn btn-danger btn-sm" onclick="deleteClient(\'' + escapeHtml(cl.id) + '\')">Excluir</button></td></tr>'); });
@@ -266,7 +306,7 @@ async function saveClient() {
   var payload = { user_id: user.id, nome: (document.getElementById("client-nome")?.value || "").trim(), telefone: (document.getElementById("client-tel")?.value || "").trim() || null, email: (document.getElementById("client-email")?.value || "").trim() || null, queixa_principal: (document.getElementById("client-queixa")?.value || "").trim() || null, anamnese: (document.getElementById("client-anamnese")?.value || "").trim() || null, updated_at: new Date().toISOString() };
   var res = id ? await sb.from("clientes_emocionais").update(payload).eq("id", id) : await sb.from("clientes_emocionais").insert(payload);
   if (res.error) return showAppAlert("Erro: " + res.error.message, "error");
-  resetClientForm(); showAppAlert("Cliente salvo!"); loadClients();
+  resetClientForm(); showAppAlert("Prontuário salvo!"); loadClients();
 }
 
 async function deleteClient(id) {
@@ -276,119 +316,179 @@ async function deleteClient(id) {
   showAppAlert("Removido."); loadClients();
 }
 
+// === JOGOS ===
 function startGame(type) {
   gameState = { type: type, startedAt: Date.now(), acertos: 0, tentativas: 0, selected: null, matchedIds: [], puzzleOrder: [] };
+  
   if (type === "pareamento_cores" || type === "pareamento_sobras") {
-    var base = [{ key: "Vermelho", color: "#EF4444", label: "Vermelho" }, { key: "Azul", color: "#3B82F6", label: "Azul" }, { key: "Amarelo", color: "#EAB308", label: "Amarelo" }, { key: "Verde", color: "#22C55E", label: "Verde" }];
+    var base = [
+      { key: "Vermelho", color: "#EF4444", label: "Vermelho" }, { key: "Azul", color: "#3B82F6", label: "Azul" },
+      { key: "Amarelo", color: "#EAB308", label: "Amarelo" }, { key: "Verde", color: "#22C55E", label: "Verde" },
+      { key: "Roxo", color: "#A855F7", label: "Roxo" }, { key: "Laranja", color: "#F97316", label: "Laranja" }
+    ];
     var items = [];
     base.forEach(function(b, idx) { items.push({ id: "a-" + idx, key: b.key, label: b.label, color: b.color }); items.push({ id: "b-" + idx, key: b.key, label: b.label, color: b.color }); });
-    if (type === "pareamento_sobras") { items.push({ id: "extra-1", key: "Roxo", label: "Roxo", color: "#A855F7" }); items.push({ id: "extra-2", key: "Laranja", label: "Laranja", color: "#F97316" }); }
+    if (type === "pareamento_sobras") { items.push({ id: "extra-1", key: "Marrom", label: "Marrom", color: "#78350F" }); items.push({ id: "extra-2", key: "Rosa", label: "Rosa", color: "#EC4899" }); }
     gameState.items = shuf(items); gameState.totalPairs = base.length;
     speak(type === "pareamento_sobras" ? "Pareamento com sobras. Encontre os pares iguais." : "Pareamento colorido. Encontre as cores iguais.");
     renderPairGame();
   } else if (type === "quebra_cabeca") {
     startRealPuzzle();
   } else if (type === "identificacao_imagem") {
-    var bank = [{ icon: "🐶", word: "Cachorro" }, { icon: "🐱", word: "Gato" }, { icon: "🍎", word: "Maçã" }, { icon: "🚗", word: "Carro" }, { icon: "⭐", word: "Estrela" }];
-    gameState.target = bank[Math.floor(Math.random() * bank.length)]; gameState.options = shuf(bank);
+    var bank = [
+      { icon: "🐶", word: "Cachorro" }, { icon: "🐱", word: "Gato" }, { icon: "🍎", word: "Maçã" }, { icon: "🚗", word: "Carro" },
+      { icon: "⭐", word: "Estrela" }, { icon: "🐘", word: "Elefante" }, { icon: "🍌", word: "Banana" }, { icon: "✈️", word: "Avião" },
+      { icon: "🌻", word: "Girassol" }, { icon: "🐟", word: "Peixe" }, { icon: "🍇", word: "Uva" }, { icon: "🚲", word: "Bicicleta" }
+    ];
+    var options = shuf(bank).slice(0, 6); // Pega 6 opções aleatórias
+    gameState.target = options[Math.floor(Math.random() * options.length)]; gameState.options = options;
     speak("Encontre: " + gameState.target.word); renderIdentifyGame();
   } else if (type === "ligar_imagens") {
-    var pairs = [{ id: 1, left: "🔑", right: "🔒", label: "Chave e cadeado" }, { id: 2, left: "🖌️", right: "🎨", label: "Pincel e tinta" }, { id: 3, left: "🧦", right: "👟", label: "Meia e tênis" }, { id: 4, left: "☀️", right: "🕶️", label: "Sol e óculos" }];
+    var pairs = [
+      { id: 1, left: "🔑", right: "🔒", label: "Chave e cadeado" }, { id: 2, left: "🖌️", right: "🎨", label: "Pincel e tinta" },
+      { id: 3, left: "🧦", right: "👟", label: "Meia e tênis" }, { id: 4, left: "☀️", right: "🕶️", label: "Sol e óculos" },
+      { id: 5, left: "☕", right: "🥐", label: "Café e pão" }, { id: 6, left: "🧼", right: "💧", label: "Sabão e água" }
+    ];
     gameState.pairs = pairs; gameState.leftItems = shuf(pairs.map(function(p) { return { id: p.id, icon: p.left }; })); gameState.rightItems = shuf(pairs.map(function(p) { return { id: p.id, icon: p.right }; })); gameState.selectedLeft = null;
     speak("Ligue uma imagem a outra que combina."); renderConnectGame();
   } else if (type === "identificacao_conceitos") {
-    var cBank = [{ display: "A", label: "Letra A" }, { display: "7", label: "Número 7" }, { display: "🔵", label: "Círculo azul" }, { display: "🔺", label: "Triângulo" }, { display: "🦋", label: "Borboleta" }, { display: "🟨", label: "Quadrado amarelo" }];
-    gameState.target = cBank[Math.floor(Math.random() * cBank.length)]; gameState.options = shuf(cBank);
+    var cBank = [
+      { display: "A", label: "Letra A" }, { display: "7", label: "Número 7" }, { display: "🔵", label: "Círculo azul" },
+      { display: "🔺", label: "Triângulo" }, { display: "🦋", label: "Borboleta" }, { display: "🟨", label: "Quadrado amarelo" },
+      { display: "B", label: "Letra B" }, { display: "3", label: "Número 3" }, { display: "🟩", label: "Quadrado verde" }, { display: "⭐", label: "Estrela" }
+    ];
+    var opts = shuf(cBank).slice(0, 6);
+    gameState.target = opts[Math.floor(Math.random() * opts.length)]; gameState.options = opts;
     speak("Toque em: " + gameState.target.label); renderConceptsGame();
   }
 }
 
+// --- JOGO: PARES ---
 function renderPairGame() {
   var board = document.getElementById("game-board");
-  var title = gameState.type === "pareamento_sobras" ? "Pareamento com Sobras" : "Pareamento Colorido";
   var btns = [];
   gameState.items.forEach(function(it) {
     var isMatched = gameState.matchedIds.indexOf(it.id) !== -1;
     var isSel = gameState.selected === it.id;
-    btns.push('<button type="button" class="tile-btn ' + (isSel ? "selected" : "") + ' ' + (isMatched ? "matched" : "") + '" onclick="clickPairTile(\'' + it.id + '\')"><span style="width:28px;height:28px;border-radius:50%;background:' + it.color + ';display:inline-block;border:1px solid rgba(0,0,0,0.15);"></span><span>' + it.label + '</span></button>');
+    btns.push('<button type="button" class="tile-btn ' + (isSel ? "selected" : "") + ' ' + (isMatched ? "matched" : "") + '" onclick="clickPairTile(\'' + it.id + '\')"><span style="width:40px;height:40px;border-radius:50%;background:' + it.color + ';display:inline-block;border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,0.2);"></span></button>');
   });
-  board.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><strong>' + title + '</strong><span>Acertos: ' + (gameState.matchedIds.length / 2) + ' / ' + gameState.totalPairs + '</span></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  board.innerHTML = '<div class="tiles-grid">' + btns.join("") + '</div>';
 }
 
 async function clickPairTile(id) {
   if (gameState.matchedIds.indexOf(id) !== -1 || gameState.selected === id) return;
   var clicked = gameState.items.find(function(x) { return x.id === id; });
-  speak(clicked.label);
-  if (!gameState.selected) { gameState.selected = id; renderPairGame(); return; }
+  
+  if (!gameState.selected) { gameState.selected = id; speak(clicked.label); renderPairGame(); return; }
+  
   var prev = gameState.items.find(function(x) { return x.id === gameState.selected; });
   gameState.tentativas += 1; gameState.selected = null;
+  
   if (prev.key === clicked.key) {
-    gameState.acertos += 1; gameState.matchedIds.push(prev.id, clicked.id);
+    gameState.acertos += 1; gameState.matchedIds.push(prev.id, clicked.id); playSuccess();
     if (gameState.matchedIds.length / 2 === gameState.totalPairs) {
       var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-      await recordGameSession(gameState.type === "pareamento_sobras" ? "Pareamento com Sobras" : "Pareamento Colorido", gameState.acertos, gameState.tentativas, dur);
-      speak("Parabéns! Concluiu o pareamento."); showAppAlert("Atividade concluída e salva no relatório!");
+      finishGame("Pareamento", gameState.acertos, gameState.tentativas, dur);
     }
-  }
+  } else { playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); }
   renderPairGame();
 }
 
-function renderPuzzleGame() {
-  var board = document.getElementById("game-board");
-  var nextExpected = gameState.acertos + 1;
-  var btns = [];
-  gameState.puzzleOrder.forEach(function(num) {
-    var done = num < nextExpected;
-    btns.push('<button type="button" class="tile-btn ' + (done ? "matched" : "") + '" onclick="clickPuzzlePiece(' + num + ')"><span style="font-size:1.8rem;">' + num + '</span><small>Peça ' + num + '</small></button>');
+// --- JOGO: QUEBRA-CABEÇA REAL 3x3 ---
+let puzzlePieces = []; let puzzleSolved = false;
+function startRealPuzzle() {
+  gameState = { type: "quebra_cabeca", startedAt: Date.now(), acertos: 0, tentativas: 0 };
+  puzzleSolved = false;
+  puzzlePieces = [0, 1, 2, 3, 4, 5, 6, 7, 8].sort(() => Math.random() - 0.5);
+  speak("Quebra-cabeça. Arraste as peças para montar a imagem.");
+  renderRealPuzzle();
+}
+
+function renderRealPuzzle() {
+  const board = document.getElementById("game-board");
+  const imgUrl = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&h=400&fit=crop"; // Gatinho
+  let html = `
+    <div style="text-align:center; margin-bottom:15px;">
+      <button class="btn btn-outline btn-sm" onclick="startRealPuzzle()">Embaralhar</button>
+    </div>
+    <div class="puzzle-grid" id="puzzle-board">
+  `;
+  puzzlePieces.forEach((pieceIndex, currentIndex) => {
+    const row = Math.floor(pieceIndex / 3);
+    const col = pieceIndex % 3;
+    const bgPos = `-${col * 100}px -${row * 100}px`;
+    html += `
+      <div class="puzzle-piece" draggable="true" data-index="${currentIndex}"
+           ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="dropPiece(event)"
+           style="background-image: url('${imgUrl}'); background-position: ${bgPos}; background-size: 300px 300px;">
+      </div>
+    `;
   });
-  board.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><strong>Quebra-Cabeça (Sequência 1 a 4)</strong><span>Próxima peça: <strong>' + (nextExpected <= 4 ? nextExpected : "Concluído!") + '</strong></span></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  html += `</div>`;
+  board.innerHTML = html;
 }
 
-async function clickPuzzlePiece(num) {
-  var expected = gameState.acertos + 1; if (expected > 4) return;
-  gameState.tentativas += 1; speak("Peça " + num);
-  if (num === expected) {
-    gameState.acertos += 1;
-    if (gameState.acertos === 4) {
-      var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-      await recordGameSession("Quebra-Cabeça", gameState.acertos, gameState.tentativas, dur);
-      speak("Muito bem! Quebra-cabeça montado."); showAppAlert("Quebra-cabeça concluído!");
-    }
+function dragStart(e) { e.dataTransfer.setData("text/plain", e.target.getAttribute("data-index")); e.target.classList.add("dragging"); }
+function dragOver(e) { e.preventDefault(); }
+async function dropPiece(e) {
+  e.preventDefault();
+  const draggedIndex = parseInt(e.dataTransfer.getData("text/plain"));
+  const target = e.target.closest(".puzzle-piece"); if (!target) return;
+  const droppedIndex = parseInt(target.getAttribute("data-index"));
+  
+  if (draggedIndex !== droppedIndex) {
+    const temp = puzzlePieces[draggedIndex]; puzzlePieces[draggedIndex] = puzzlePieces[droppedIndex]; puzzlePieces[droppedIndex] = temp;
+    gameState.tentativas++;
+    document.querySelector(".dragging")?.classList.remove("dragging");
+    renderRealPuzzle();
+    checkPuzzleSolved();
   }
-  renderPuzzleGame();
 }
 
+async function checkPuzzleSolved() {
+  if (puzzleSolved) return;
+  const isSolved = puzzlePieces.every((val, index) => val === index);
+  if (isSolved) {
+    puzzleSolved = true; gameState.acertos = 9; // Considera 9 acertos para fechar
+    const dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
+    finishGame("Quebra-Cabeça", gameState.acertos, gameState.tentativas + 1, dur);
+  }
+}
+
+// --- JOGO: IDENTIFICAÇÃO DE IMAGEM ---
 function renderIdentifyGame() {
   var board = document.getElementById("game-board");
   var btns = [];
-  gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickIdentifyOption(\'' + opt.word + '\')"><span style="font-size:2rem;">' + opt.icon + '</span></button>'); });
-  board.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><strong>Identificação de Imagem — Encontre: <span style="color:var(--gold-dark);">' + gameState.target.word + '</span></strong><button type="button" class="btn btn-outline btn-sm" onclick="speak(\'' + gameState.target.word + '\')">Ouvir palavra</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickIdentifyOption(\'' + opt.word + '\')"><span style="font-size:3rem;">' + opt.icon + '</span></button>'); });
+  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Encontre: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.word + '</span></strong><br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="speak(\'' + gameState.target.word + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
 }
 
 async function clickIdentifyOption(word) {
   gameState.tentativas += 1;
   if (word === gameState.target.word) {
-    gameState.acertos += 1;
+    gameState.acertos += 1; playSuccess();
     var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-    await recordGameSession("Identificação de Imagem", gameState.acertos, gameState.tentativas, dur);
-    speak("Isso mesmo! " + word); showAppAlert("Acertou (" + word + ")!");
-    setTimeout(function() { startGame("identificacao_imagem"); }, 900);
-  } else { speak("Tente novamente"); }
+    finishGame("Identificação de Imagem", gameState.acertos, gameState.tentativas, dur);
+  } else {
+    playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
+    speak("Tente novamente");
+  }
 }
 
+// --- JOGO: LIGAR IMAGENS ---
 function renderConnectGame() {
   var board = document.getElementById("game-board");
   var leftBtns = []; var rightBtns = [];
   gameState.leftItems.forEach(function(item) {
     var done = gameState.matchedIds.indexOf(item.id) !== -1;
     var sel = gameState.selectedLeft === item.id;
-    leftBtns.push('<button type="button" class="tile-btn ' + (sel ? "selected" : "") + ' ' + (done ? "matched" : "") + '" onclick="selectLeft(' + item.id + ')"><span style="font-size:1.8rem;">' + item.icon + '</span></button>');
+    leftBtns.push('<button type="button" class="tile-btn ' + (sel ? "selected" : "") + ' ' + (done ? "matched" : "") + '" onclick="selectLeft(' + item.id + ')"><span style="font-size:2.5rem;">' + item.icon + '</span></button>');
   });
   gameState.rightItems.forEach(function(item) {
     var done = gameState.matchedIds.indexOf(item.id) !== -1;
-    rightBtns.push('<button type="button" class="tile-btn ' + (done ? "matched" : "") + '" onclick="selectRight(' + item.id + ')"><span style="font-size:1.8rem;">' + item.icon + '</span></button>');
+    rightBtns.push('<button type="button" class="tile-btn ' + (done ? "matched" : "") + '" onclick="selectRight(' + item.id + ')"><span style="font-size:2.5rem;">' + item.icon + '</span></button>');
   });
-  board.innerHTML = '<strong>Ligar uma Imagem a Outra</strong><p class="subtitle">Toque na imagem da esquerda e depois na imagem correspondente da direita.</p><div class="grid-2"><div class="tiles-grid">' + leftBtns.join("") + '</div><div class="tiles-grid">' + rightBtns.join("") + '</div></div>';
+  board.innerHTML = '<p class="subtitle">Toque na imagem da esquerda e depois na correspondente da direita.</p><div class="grid-2"><div class="tiles-grid">' + leftBtns.join("") + '</div><div class="tiles-grid">' + rightBtns.join("") + '</div></div>';
 }
 
 function selectLeft(id) { if (gameState.matchedIds.indexOf(id) !== -1) return; gameState.selectedLeft = id; renderConnectGame(); }
@@ -397,32 +497,35 @@ async function selectRight(id) {
   if (!gameState.selectedLeft || gameState.matchedIds.indexOf(id) !== -1) return;
   gameState.tentativas += 1;
   if (gameState.selectedLeft === id) {
-    gameState.acertos += 1; gameState.matchedIds.push(id); speak("Boa ligação!");
+    gameState.acertos += 1; gameState.matchedIds.push(id); playSuccess(); speak("Boa ligação!");
     if (gameState.matchedIds.length === gameState.pairs.length) {
       var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-      await recordGameSession("Ligar uma Imagem a Outra", gameState.acertos, gameState.tentativas, dur);
-      showAppAlert("Todas as ligações concluídas!");
+      finishGame("Ligar Imagens", gameState.acertos, gameState.tentativas, dur);
     }
-  } else { speak("Não combina. Tente outro par."); }
+  } else {
+    playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); speak("Não combina.");
+  }
   gameState.selectedLeft = null; renderConnectGame();
 }
 
+// --- JOGO: CONCEITOS ---
 function renderConceptsGame() {
   var board = document.getElementById("game-board");
   var btns = [];
-  gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickConceptOption(\'' + opt.label + '\')"><span style="font-size:1.8rem;">' + opt.display + '</span></button>'); });
-  board.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><strong>Identificação — Toque em: <span style="color:var(--gold-dark);">' + gameState.target.label + '</span></strong><button type="button" class="btn btn-outline btn-sm" onclick="speak(\'' + gameState.target.label + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickConceptOption(\'' + opt.label + '\')"><span style="font-size:2.5rem;">' + opt.display + '</span></button>'); });
+  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Toque em: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.label + '</span></strong><br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="speak(\'' + gameState.target.label + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
 }
 
 async function clickConceptOption(label) {
   gameState.tentativas += 1;
   if (label === gameState.target.label) {
-    gameState.acertos += 1;
+    gameState.acertos += 1; playSuccess();
     var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-    await recordGameSession("Identificação (Letras/Números/Cores/Formas)", gameState.acertos, gameState.tentativas, dur);
-    speak("Muito bem! " + label); showAppAlert("Acertou (" + label + ")!");
-    setTimeout(function() { startGame("identificacao_conceitos"); }, 900);
-  } else { speak("Tente de novo"); }
+    finishGame("Letras, Números e Formas", gameState.acertos, gameState.tentativas, dur);
+  } else {
+    playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
+    speak("Tente de novo");
+  }
 }
 
 document.addEventListener("DOMContentLoaded", async function() {

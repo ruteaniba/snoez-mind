@@ -87,7 +87,7 @@
 
         <div class="grid-2" style="align-items:end;">
           <div class="field" style="margin-bottom:0;">
-            <label for="active-child-select">Criança em atendimento (para salvar no relatório)</label>
+            <label for="active-child-select">Paciente em atendimento (para salvar no relatório)</label>
             <select id="active-child-select" onchange="onChildChange()">
               <option value="">Sessão avulsa (sem criança vinculada)</option>
             </select>
@@ -103,7 +103,7 @@
 
       <div class="nav-tabs">
         <button type="button" class="tab-btn active" data-tab="jogos" onclick="switchWorkspaceTab('jogos')">Jogos Terapêuticos</button>
-        <button type="button" class="tab-btn" data-tab="criancas" onclick="switchWorkspaceTab('criancas')">Crianças & Relatórios</button>
+        <button type="button" class="tab-btn" data-tab="criancas" onclick="switchWorkspaceTab('criancas')">Pacientes & Relatórios</button>
         <button type="button" class="tab-btn" data-tab="emocional" onclick="switchWorkspaceTab('emocional')">Terapia Emocional & Anamnese</button>
       </div>
 
@@ -128,12 +128,12 @@
       </section>
 
       <section id="tab-criancas" class="card hidden">
-        <h3>Cadastro de Crianças</h3>
-        <p class="subtitle">Registre crianças com TEA, Síndrome de Down, TDAH ou outras condições para acompanhar a evolução.</p>
+        <h3>Cadastro de Pacientes</h3>
+        <p class="subtitle">Registre pacientes com TEA, Síndrome de Down, TDAH ou outras condições para acompanhar a evolução.</p>
 
         <form id="child-form" class="grid-2" onsubmit="event.preventDefault(); saveChild();">
           <div class="field">
-            <label for="child-nome">Nome da criança</label>
+            <label for="child-nome">Nome do Paciente</label>
             <input id="child-nome" type="text" required>
           </div>
           <div class="field">
@@ -153,7 +153,7 @@
           </div>
         </form>
 
-        <h3 style="margin-top:20px;">Crianças Cadastradas</h3>
+        <h3 style="margin-top:20px;">Pacientes Cadastrados</h3>
         <div class="table-wrap">
           <table>
             <thead>
