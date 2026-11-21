@@ -101,12 +101,17 @@ async function removeUser(id) {
 
 // --- NOVA FUNÇÃO PARA MOSTRAR OS DADOS DO CLIENTE ---
 async function viewTherapistData(userId, userName) {
+  const existing = document.getElementById('admin-modal-overlay');
+  if (existing) existing.remove();
+
   // Cria o modal
   const modal = document.createElement('div');
+  modal.id = 'admin-modal-overlay';
   modal.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px;";
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
   modal.innerHTML = `
     <div style="background:#fff;padding:24px;border-radius:10px;max-width:900px;width:100%;max-height:85vh;overflow-y:auto;position:relative;">
-      <button onclick="this.closest('div[style]').remove()" style="position:absolute;top:15px;right:15px;background:#EF4444;color:#fff;border:none;padding:8px 12px;cursor:pointer;border-radius:5px;font-weight:bold;">X</button>
+      <button onclick="document.getElementById('admin-modal-overlay').remove()" style="position:absolute;top:15px;right:15px;background:#EF4444;color:#fff;border:none;padding:8px 12px;cursor:pointer;border-radius:5px;font-weight:bold;">X</button>
       <h2 style="margin-top:0; color:#333;">Dados do Terapeuta: ${escapeHTML(userName)}</h2>
       <hr style="margin-bottom:20px; border:0; border-top:1px solid #ddd;">
       <div id="admin-modal-content" style="color:#333;">Carregando informações...</div>
