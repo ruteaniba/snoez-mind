@@ -1,4 +1,3 @@
-let speechEnabled = true;
 let childrenList = [];
 let clientsCache = [];
 let selectedChildId = "";
@@ -6,53 +5,10 @@ let gameState = null;
 const CREDS_KEY = "snoezmind_saved_creds_v1";
 const TARGET_CORRECT = 7;
 
-function playTone(freq, type, duration, volume = 0.1) {
-  if (!speechEnabled) return;
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = type;
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(volume, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + duration);
-  } catch (e) {}
-}
-
-function playSuccess() { 
-  playTone(523.25, "sine", 0.4, 0.08); 
-  setTimeout(() => playTone(659.25, "sine", 0.4, 0.08), 100); 
-  setTimeout(() => playTone(783.99, "sine", 0.6, 0.08), 200); 
-}
-
-function playError() { 
-  playTone(180, "triangle", 0.3, 0.06); 
-}
-
-function speak(text) {
-  if (!speechEnabled || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  var utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "pt-BR";
-  var voices = window.speechSynthesis.getVoices();
-  var femaleVoice = voices.find(v => 
-    v.lang.includes("pt") && 
-    (v.name.includes("Maria") || v.name.includes("Luciana") || v.name.includes("Helena") || v.name.includes("Zira") || v.name.includes("Female") || v.name.includes("Google"))
-  );
-  if (femaleVoice) utter.voice = femaleVoice;
-  utter.pitch = 1.1;
-  window.speechSynthesis.speak(utter);
-}
-if ("speechSynthesis" in window) { window.speechSynthesis.getVoices(); }
-
+// === SISTEMA DE PONTUAÇÃO E FIM DE JOGO ===
 async function finishGame(gameName, acertos, tentativas, duration) {
   const score = tentativas > 0 ? Math.round((acertos / tentativas) * 100) : 0;
-  playSuccess();
-  speak("Fim de jogo! Sua pontuação foi de " + score + " por cento.");
+  
   const overlay = document.createElement("div");
   overlay.className = "game-modal-overlay";
   overlay.innerHTML = `
@@ -67,9 +23,11 @@ async function finishGame(gameName, acertos, tentativas, duration) {
   `;
   document.body.appendChild(overlay);
   setTimeout(() => overlay.classList.add("show"), 10);
+
   await recordGameSession(gameName, acertos, tentativas, duration);
 }
 
+// === FUNÇÕES DO SISTEMA ===
 function setAuthAlert(msg, isOk) {
   const el = document.getElementById("auth-alert");
   if (!el) return;
@@ -108,13 +66,6 @@ function shuf(arr) {
     var tmp = copy[i]; copy[i] = copy[j]; copy[j] = tmp;
   }
   return copy;
-}
-
-function toggleSpeech() {
-  speechEnabled = !speechEnabled;
-  var span = document.getElementById("speech-status");
-  if (span) span.textContent = speechEnabled ? "SIM" : "NÃO";
-  if (speechEnabled) speak("Estímulo de fala ativado");
 }
 
 function switchTab(tab) {
@@ -170,19 +121,25 @@ async function handleLoginSubmit() {
   var email = (document.getElementById("login-email")?.value || "").trim();
   var password = document.getElementById("login-pass")?.value || "";
   if (typeof sb === "undefined" || !sb || !sb.auth) return setAuthAlert("Erro: cliente Supabase não inicializado.", false);
+  
   saveOrClearCreds(email, password);
   setAuthAlert("A verificar credenciais...", true);
+  
   try {
     var res = await sb.auth.signInWithPassword({ email: email, password: password });
     if (res.error) return setAuthAlert("Erro ao entrar: " + res.error.message, false);
+    
     var profRes = await sb.from("profiles").select("*").eq("id", res.data.user.id).single();
     var profile = profRes.data;
+    
     if (profRes.error || !profile) return setAuthAlert("Autenticado, mas sem perfil.", false);
     if (profile.role === "admin") { window.location.href = "admin.html"; return; }
     if (!profile.ativo) { await sb.auth.signOut(); return setAuthAlert("A sua conta ainda não foi ativada.", false); }
+    
     var today = new Date().toISOString().split("T")[0];
     if (profile.data_inicio && today < profile.data_inicio) { await sb.auth.signOut(); return setAuthAlert("Acesso será liberado em " + profile.data_inicio, false); }
     if (profile.data_fim && today > profile.data_fim) { await sb.auth.signOut(); return setAuthAlert("Acesso expirou em " + profile.data_fim, false); }
+    
     openWorkspace(profile);
   } catch (err) { setAuthAlert("Falha no login: " + (err && err.message ? err.message : err), false); }
 }
@@ -193,6 +150,7 @@ async function handleRegisterSubmit() {
   var whatsapp = (document.getElementById("reg-whatsapp")?.value || "").replace(/\D/g, "");
   var password = document.getElementById("reg-pass")?.value || "";
   if (typeof sb === "undefined" || !sb || !sb.auth) return setAuthAlert("Erro: cliente Supabase não inicializado.", false);
+  
   setAuthAlert("A enviar cadastro...", true);
   try {
     var res = await sb.auth.signUp({ email, password, options: { data: { nome, whatsapp } } });
@@ -210,6 +168,7 @@ async function handleRecoverSubmit() {
   setAuthAlert("Enviámos uma ligação para o seu e-mail.", true);
 }
 
+// === BANCO DE DADOS ===
 async function loadChildren() {
   if (typeof sb === "undefined" || !sb) return;
   var uRes = await sb.auth.getUser(); var user = uRes && uRes.data ? uRes.data.user : null;
@@ -324,8 +283,10 @@ async function deleteClient(id) {
   showAppAlert("Removido."); loadClients();
 }
 
+// === SISTEMA DE NÍVEIS E JOGOS ===
 function startGame(type, level = 1) {
   gameState = { type: type, level: level, startedAt: Date.now(), acertos: 0, tentativas: 0, selected: null, matchedIds: [], levelCorrects: 0, totalAcertos: level > 1 ? (gameState?.totalAcertos || 0) : 0, totalTentativas: level > 1 ? (gameState?.totalTentativas || 0) : 0 };
+  
   if (type === "pareamento_cores" || type === "pareamento_sobras") {
     var base = [
       { key: "Vermelho", color: "#EF4444", label: "Vermelho" }, { key: "Azul", color: "#3B82F6", label: "Azul" },
@@ -336,7 +297,6 @@ function startGame(type, level = 1) {
     base.forEach(function(b, idx) { items.push({ id: "a-" + idx, key: b.key, label: b.label, color: b.color }); items.push({ id: "b-" + idx, key: b.key, label: b.label, color: b.color }); });
     if (type === "pareamento_sobras") { items.push({ id: "extra-1", key: "Marrom", label: "Marrom", color: "#78350F" }); items.push({ id: "extra-2", key: "Rosa", label: "Rosa", color: "#EC4899" }); }
     gameState.items = shuf(items); gameState.totalPairs = base.length;
-    speak(type === "pareamento_sobras" ? "Pareamento com sobras. Encontre os pares iguais." : "Pareamento colorido. Encontre as cores iguais.");
     renderPairGame();
   } else if (type === "quebra_cabeca") {
     startRealPuzzle();
@@ -350,7 +310,7 @@ function startGame(type, level = 1) {
     var maxOptions = level === 1 ? 4 : (level === 2 ? 6 : 9);
     var options = shuf(bank).slice(0, maxOptions);
     gameState.target = options[Math.floor(Math.random() * options.length)]; gameState.options = options;
-    speak("Nível " + level + ". Encontre: " + gameState.target.word); renderIdentifyGame();
+    renderIdentifyGame();
   } else if (type === "ligar_imagens") {
     var pairs = [
       { id: 1, left: "🔑", right: "🔒", label: "Chave e cadeado" }, { id: 2, left: "🖌️", right: "🎨", label: "Pincel e tinta" },
@@ -358,7 +318,7 @@ function startGame(type, level = 1) {
       { id: 5, left: "☕", right: "🥐", label: "Café e pão" }, { id: 6, left: "🧼", right: "💧", label: "Sabão e água" }
     ];
     gameState.pairs = pairs; gameState.leftItems = shuf(pairs.map(function(p) { return { id: p.id, icon: p.left }; })); gameState.rightItems = shuf(pairs.map(function(p) { return { id: p.id, icon: p.right }; })); gameState.selectedLeft = null;
-    speak("Ligue uma imagem a outra que combina."); renderConnectGame();
+    renderConnectGame();
   } else if (type === "identificacao_conceitos") {
     var cBank = [
       { display: "A", label: "Letra A" }, { display: "7", label: "Número 7" }, { display: "🔵", label: "Círculo azul" },
@@ -367,10 +327,11 @@ function startGame(type, level = 1) {
     ];
     var opts = shuf(cBank).slice(0, 6);
     gameState.target = opts[Math.floor(Math.random() * opts.length)]; gameState.options = opts;
-    speak("Toque em: " + gameState.target.label); renderConceptsGame();
+    renderConceptsGame();
   }
 }
 
+// --- JOGO: PARES ---
 function renderPairGame() {
   var board = document.getElementById("game-board");
   var btns = [];
@@ -385,22 +346,28 @@ function renderPairGame() {
 async function clickPairTile(id) {
   if (gameState.matchedIds.indexOf(id) !== -1 || gameState.selected === id) return;
   var clicked = gameState.items.find(function(x) { return x.id === id; });
-  if (!gameState.selected) { gameState.selected = id; speak(clicked.label); renderPairGame(); return; }
+  
+  if (!gameState.selected) { gameState.selected = id; renderPairGame(); return; }
+  
   var prev = gameState.items.find(function(x) { return x.id === gameState.selected; });
   gameState.tentativas += 1; gameState.totalTentativas++; gameState.selected = null;
+  
   if (prev.key === clicked.key) {
-    gameState.acertos += 1; gameState.totalAcertos++; gameState.levelCorrects++; gameState.matchedIds.push(prev.id, clicked.id); playSuccess();
+    gameState.acertos += 1; gameState.totalAcertos++; gameState.levelCorrects++; gameState.matchedIds.push(prev.id, clicked.id);
+    
     if (gameState.levelCorrects >= TARGET_CORRECT) {
-      speak("Parabéns! Você passou para o nível " + (gameState.level + 1));
-      setTimeout(() => startGame(gameState.type, gameState.level + 1), 2000);
+      setTimeout(() => startGame(gameState.type, gameState.level + 1), 1000);
     } else if (gameState.matchedIds.length / 2 === gameState.totalPairs) {
-      speak("Muito bem! Continuando para a próxima rodada.");
-      setTimeout(() => startGame(gameState.type, gameState.level), 2000);
+      setTimeout(() => startGame(gameState.type, gameState.level), 1000);
     }
-  } else { playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); }
+  } else { 
+    document.getElementById("game-board").classList.add("shake"); 
+    setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); 
+  }
   renderPairGame();
 }
 
+// --- JOGO: QUEBRA-CABEÇA REAL 3x3 ---
 let puzzlePieces = []; let puzzleSolved = false;
 const puzzleImages = [
   "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&h=400&fit=crop",
@@ -430,7 +397,6 @@ function startRealPuzzle() {
   puzzleSolved = false;
   gameState.currentPuzzleImage = puzzleImages[Math.floor(Math.random() * puzzleImages.length)];
   puzzlePieces = [0, 1, 2, 3, 4, 5, 6, 7, 8].sort(() => Math.random() - 0.5);
-  speak("Quebra-cabeça. Arraste as peças para montar a imagem.");
   renderRealPuzzle();
 }
 
@@ -465,13 +431,11 @@ async function dropPiece(e) {
   const draggedIndex = parseInt(e.dataTransfer.getData("text/plain"));
   const target = e.target.closest(".puzzle-piece"); if (!target) return;
   const droppedIndex = parseInt(target.getAttribute("data-index"));
+  
   if (draggedIndex !== droppedIndex) {
     const temp = puzzlePieces[draggedIndex]; puzzlePieces[draggedIndex] = puzzlePieces[droppedIndex]; puzzlePieces[droppedIndex] = temp;
     gameState.tentativas++;
     document.querySelector(".dragging")?.classList.remove("dragging");
-    if (puzzlePieces[draggedIndex] === draggedIndex || puzzlePieces[droppedIndex] === droppedIndex) {
-      playTone(600, "sine", 0.1, 0.05);
-    }
     renderRealPuzzle();
     checkPuzzleSolved();
   }
@@ -487,27 +451,27 @@ async function checkPuzzleSolved() {
   }
 }
 
+// --- JOGO: IDENTIFICAÇÃO DE IMAGEM ---
 function renderIdentifyGame() {
   var board = document.getElementById("game-board");
   var btns = [];
   gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickIdentifyOption(\'' + opt.word + '\')"><span style="font-size:3rem;">' + opt.icon + '</span></button>'); });
-  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '<br>Encontre: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.word + '</span></strong><br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="speak(\'' + gameState.target.word + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '<br>Encontre: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.word + '</span></strong></div><div class="tiles-grid">' + btns.join("") + '</div>';
 }
 
 async function clickIdentifyOption(word) {
   gameState.tentativas++; gameState.totalTentativas++;
   if (word === gameState.target.word) {
-    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; playSuccess();
+    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++;
+    
     if (gameState.levelCorrects >= TARGET_CORRECT) {
       if (gameState.level < 3) {
-        speak("Muito bem! Você passou para o nível " + (gameState.level + 1));
-        setTimeout(() => { startGame("identificacao_imagem", gameState.level + 1); }, 2000);
+        setTimeout(() => { startGame("identificacao_imagem", gameState.level + 1); }, 1000);
       } else {
         var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
         finishGame("Identificação de Imagem (3 Níveis)", gameState.totalAcertos, gameState.totalTentativas, dur);
       }
     } else {
-      speak("Muito bem! " + gameState.levelCorrects + " de " + TARGET_CORRECT);
       setTimeout(() => {
         var bank = [
           { icon: "🐶", word: "Cachorro" }, { icon: "🐱", word: "Gato" }, { icon: "🍎", word: "Maçã" }, { icon: "🚗", word: "Carro" },
@@ -518,15 +482,15 @@ async function clickIdentifyOption(word) {
         var maxOptions = gameState.level === 1 ? 4 : (gameState.level === 2 ? 6 : 9);
         var options = shuf(bank).slice(0, maxOptions);
         gameState.target = options[Math.floor(Math.random() * options.length)]; gameState.options = options;
-        speak("Encontre: " + gameState.target.word); renderIdentifyGame();
-      }, 1500);
+        renderIdentifyGame();
+      }, 1000);
     }
   } else {
-    playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
-    speak("Tente novamente");
+    document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
   }
 }
 
+// --- JOGO: LIGAR IMAGENS ---
 function renderConnectGame() {
   var board = document.getElementById("game-board");
   var leftBtns = []; var rightBtns = [];
@@ -548,36 +512,35 @@ async function selectRight(id) {
   if (!gameState.selectedLeft || gameState.matchedIds.indexOf(id) !== -1) return;
   gameState.tentativas++; gameState.totalTentativas++;
   if (gameState.selectedLeft === id) {
-    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; gameState.matchedIds.push(id); playSuccess(); speak("Boa ligação!");
+    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; gameState.matchedIds.push(id);
+    
     if (gameState.levelCorrects >= TARGET_CORRECT) {
-      speak("Parabéns! Você passou para o nível " + (gameState.level + 1));
-      setTimeout(() => startGame("ligar_imagens", gameState.level + 1), 2000);
+      setTimeout(() => startGame("ligar_imagens", gameState.level + 1), 1000);
     } else if (gameState.matchedIds.length === gameState.pairs.length) {
-      speak("Muito bem! Continuando.");
-      setTimeout(() => startGame("ligar_imagens", gameState.level), 2000);
+      setTimeout(() => startGame("ligar_imagens", gameState.level), 1000);
     }
   } else {
-    playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); speak("Não combina.");
+    document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
   }
   gameState.selectedLeft = null; renderConnectGame();
 }
 
+// --- JOGO: CONCEITOS ---
 function renderConceptsGame() {
   var board = document.getElementById("game-board");
   var btns = [];
   gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickConceptOption(\'' + opt.label + '\')"><span style="font-size:2.5rem;">' + opt.display + '</span></button>'); });
-  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '<br>Toque em: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.label + '</span></strong><br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="speak(\'' + gameState.target.label + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '<br>Toque em: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.label + '</span></strong></div><div class="tiles-grid">' + btns.join("") + '</div>';
 }
 
 async function clickConceptOption(label) {
   gameState.tentativas++; gameState.totalTentativas++;
   if (label === gameState.target.label) {
-    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; playSuccess();
+    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++;
+    
     if (gameState.levelCorrects >= TARGET_CORRECT) {
-      speak("Muito bem! Você passou para o nível " + (gameState.level + 1));
-      setTimeout(() => startGame("identificacao_conceitos", gameState.level + 1), 2000);
+      setTimeout(() => startGame("identificacao_conceitos", gameState.level + 1), 1000);
     } else {
-      speak("Muito bem! " + gameState.levelCorrects + " de " + TARGET_CORRECT);
       setTimeout(() => {
         var cBank = [
           { display: "A", label: "Letra A" }, { display: "7", label: "Número 7" }, { display: "🔵", label: "Círculo azul" },
@@ -586,12 +549,11 @@ async function clickConceptOption(label) {
         ];
         var opts = shuf(cBank).slice(0, 6);
         gameState.target = opts[Math.floor(Math.random() * opts.length)]; gameState.options = opts;
-        speak("Toque em: " + gameState.target.label); renderConceptsGame();
-      }, 1500);
+        renderConceptsGame();
+      }, 1000);
     }
   } else {
-    playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
-    speak("Tente de novo");
+    document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
   }
 }
 
