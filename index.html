@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-PT">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>SnoezMind</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="manifest" href="manifest.json?v=20261121b">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261121b">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -15,7 +15,7 @@
       <p class="subtitle">Acesse ou crie sua conta para continuar</p>
       <div id="auth-alert" class="alert"></div>
 
-      <form id="login-form">
+      <form id="login-form" onsubmit="event.preventDefault(); handleLoginSubmit();">
         <div class="field">
           <label for="login-email">E-mail</label>
           <input id="login-email" type="email" placeholder="seu@email.com" required>
@@ -31,7 +31,7 @@
         </div>
       </form>
 
-      <form id="register-form" class="hidden">
+      <form id="register-form" class="hidden" onsubmit="event.preventDefault(); handleRegisterSubmit();">
         <div class="field">
           <label for="reg-nome">Nome completo</label>
           <input id="reg-nome" type="text" placeholder="Seu nome" required>
@@ -54,7 +54,7 @@
         </div>
       </form>
 
-      <form id="recover-form" class="hidden">
+      <form id="recover-form" class="hidden" onsubmit="event.preventDefault(); handleRecoverSubmit();">
         <div class="field">
           <label for="rec-email">E-mail cadastrado</label>
           <input id="rec-email" type="email" placeholder="seu@email.com" required>
@@ -105,7 +105,6 @@
 
       <div id="app-alert" class="alert"></div>
 
-      <!-- ABA 1: JOGOS TERAPÊUTICOS -->
       <section id="tab-jogos" class="card">
         <h3>Jogos Educativos e Terapêuticos</h3>
         <p class="subtitle">Toque ou clique para interagir. Ideal para celular, tablet ou computador.</p>
@@ -124,12 +123,11 @@
         </div>
       </section>
 
-      <!-- ABA 2: CRIANÇAS & RELATÓRIOS -->
       <section id="tab-criancas" class="card hidden">
         <h3>Cadastro de Crianças</h3>
         <p class="subtitle">Registre crianças com TEA, Síndrome de Down, TDAH ou outras condições para acompanhar a evolução.</p>
 
-        <form id="child-form" class="grid-2">
+        <form id="child-form" class="grid-2" onsubmit="event.preventDefault(); saveChild();">
           <div class="field">
             <label for="child-nome">Nome da criança</label>
             <input id="child-nome" type="text" required>
@@ -185,12 +183,11 @@
         </div>
       </section>
 
-      <!-- ABA 3: TERAPIA EMOCIONAL & ANAMNESE -->
       <section id="tab-emocional" class="card hidden">
         <h3>Terapia Emocional — Cadastro de Clientes e Anamnese</h3>
         <p class="subtitle">Registre clientes e mantenha a anamnese organizada e atualizada.</p>
 
-        <form id="client-form">
+        <form id="client-form" onsubmit="event.preventDefault(); saveClient();">
           <input type="hidden" id="client-id">
           <div class="grid-2">
             <div class="field">
@@ -239,8 +236,20 @@
     </main>
   </div>
 
-  <script src="assets/js/config.js"></script>
-  <script src="assets/js/auth.js"></script>
-  <script src="assets/js/app.js"></script>
+  <script>
+    window.switchTab = function(tab) {
+      ["login-form", "register-form", "recover-form"].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.add("hidden");
+      });
+      var target = document.getElementById(tab + "-form");
+      if (target) target.classList.remove("hidden");
+      var alertEl = document.getElementById("auth-alert");
+      if (alertEl) alertEl.classList.remove("show");
+    };
+  </script>
+  <script src="assets/js/config.js?v=20261121b"></script>
+  <script src="assets/js/auth.js?v=20261121b"></script>
+  <script src="assets/js/app.js?v=20261121b"></script>
 </body>
 </html>
