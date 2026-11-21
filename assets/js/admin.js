@@ -58,8 +58,8 @@ async function loadUsers() {
   tbody.innerHTML = users.map(u => `
     <tr>
       <td>
-        <strong>${u.nome || "-"}</strong><br>
-        <small>${u.email}</small><br>
+        <strong>${escapeHTML(u.nome) || "-"}</strong><br>
+        <small>${escapeHTML(u.email)}</small><br>
         <small>${u.whatsapp || "Sem WhatsApp"}</small>
       </td>
       <td>${u.role}</td>
