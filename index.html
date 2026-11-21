@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-PT">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>SnoezMind</title>
-  <link rel="manifest" href="manifest.json?v=20261121f">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261121f">
+  <link rel="manifest" href="manifest.json?v=20261121g">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261121g">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -236,14 +236,20 @@
     </main>
   </div>
 
-  <script src="assets/js/config.js?v=20261121f"></script>
-  <script src="assets/js/auth.js?v=20261121f"></script>
+  <script src="assets/js/config.js?v=20261121g"></script>
   <script>
     (function() {
       var speechEnabled = true;
       var childrenList = [];
       var selectedChildId = "";
       var gameState = null;
+
+      function setAuthAlert(msg, isOk) {
+        var el = document.getElementById("auth-alert");
+        if (!el) return;
+        el.textContent = msg;
+        el.className = "alert show " + (isOk ? "success" : "error");
+      }
 
       function esc(str) {
         return String(str || "")
@@ -268,7 +274,7 @@
         if (!speechEnabled || !("speechSynthesis" in window)) return;
         window.speechSynthesis.cancel();
         var utter = new SpeechSynthesisUtterance(text);
-        utter.lang = "pt-BR";
+        utter.lang = "pt-PT";
         window.speechSynthesis.speak(utter);
       };
 
@@ -332,18 +338,58 @@
         window.loadClients();
       };
 
+      window.logoutUser = async function() {
+        if (typeof sb !== "undefined" && sb && sb.auth) {
+          await sb.auth.signOut();
+        }
+        window.location.href = "index.html";
+      };
+
       window.handleLoginSubmit = async function() {
         var email = (document.getElementById("login-email")?.value || "").trim();
         var password = document.getElementById("login-pass")?.value || "";
-        if (typeof loginUser === "function") return loginUser(email, password);
-        if (typeof sb === "undefined" || !sb) return alert("Supabase não carregado.");
-        var res = await sb.auth.signInWithPassword({ email: email, password: password });
-        if (res.error) return alert(res.error.message);
-        var prof = await sb.from("profiles").select("*").eq("id", res.data.user.id).single();
-        if (prof.data && prof.data.role === "admin") {
-          window.location.href = "admin.html";
-        } else {
-          window.openWorkspace(prof.data || { email: email });
+
+        if (typeof sb === "undefined" || !sb || !sb.auth) {
+          return setAuthAlert("Erro: cliente Supabase não inicializado. Verifique assets/js/config.js.", false);
+        }
+
+        setAuthAlert("A verificar credenciais...", true);
+        try {
+          var res = await sb.auth.signInWithPassword({ email: email, password: password });
+          if (res.error) {
+            return setAuthAlert("Erro ao entrar: " + res.error.message, false);
+          }
+
+          var profRes = await sb.from("profiles").select("*").eq("id", res.data.user.id).single();
+          var profile = profRes.data;
+
+          if (profRes.error || !profile) {
+            return setAuthAlert("Autenticado, mas sem perfil em profiles: " + (profRes.error ? profRes.error.message : "registo inexistente"), false);
+          }
+
+          if (profile.role === "admin") {
+            window.location.href = "admin.html";
+            return;
+          }
+
+          if (!profile.ativo) {
+            await sb.auth.signOut();
+            return setAuthAlert("A sua conta ainda não foi ativada pelo administrador.", false);
+          }
+
+          var today = new Date().toISOString().split("T")[0];
+          if (profile.data_inicio && today < profile.data_inicio) {
+            await sb.auth.signOut();
+            return setAuthAlert("O seu acesso será libertado em " + profile.data_inicio + ".", false);
+          }
+          if (profile.data_fim && today > profile.data_fim) {
+            await sb.auth.signOut();
+            return setAuthAlert("O seu acesso expirou em " + profile.data_fim + ".", false);
+          }
+
+          window.openWorkspace(profile);
+        } catch (err) {
+          setAuthAlert("Falha inesperada no login: " + (err && err.message ? err.message : err), false);
         }
       };
 
@@ -352,35 +398,39 @@
         var email = (document.getElementById("reg-email")?.value || "").trim();
         var whatsapp = (document.getElementById("reg-whatsapp")?.value || "").replace(/\D/g, "");
         var password = document.getElementById("reg-pass")?.value || "";
-        if (typeof sb === "undefined" || !sb) return alert("Supabase não carregado.");
-        var res = await sb.auth.signUp({
-          email: email,
-          password: password,
-          options: { data: { nome: nome, whatsapp: whatsapp } }
-        });
-        var el = document.getElementById("auth-alert");
-        if (res.error) {
-          if (el) { el.textContent = res.error.message; el.className = "alert show error"; }
-          return;
+
+        if (typeof sb === "undefined" || !sb || !sb.auth) {
+          return setAuthAlert("Erro: cliente Supabase não inicializado.", false);
         }
-        if (el) {
-          el.textContent = "Cadastro enviado! Aguarde a ativação pelo administrador.";
-          el.className = "alert show success";
+        setAuthAlert("A enviar cadastro...", true);
+        try {
+          var res = await sb.auth.signUp({
+            email: email,
+            password: password,
+            options: { data: { nome: nome, whatsapp: whatsapp } }
+          });
+          if (res.error) {
+            return setAuthAlert("Erro ao cadastrar: " + res.error.message, false);
+          }
+          setAuthAlert("Cadastro enviado! Aguarde a ativação pelo administrador.", true);
+        } catch (err) {
+          setAuthAlert("Falha inesperada no cadastro: " + (err && err.message ? err.message : err), false);
         }
       };
 
       window.handleRecoverSubmit = async function() {
         var email = (document.getElementById("rec-email")?.value || "").trim();
-        if (typeof sb === "undefined" || !sb) return alert("Supabase não carregado.");
+        if (typeof sb === "undefined" || !sb || !sb.auth) {
+          return setAuthAlert("Erro: cliente Supabase não inicializado.", false);
+        }
         var basePath = window.location.pathname.replace(/\/[^/]*$/, "/");
         var res = await sb.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin + basePath + "redefinir-senha.html"
         });
-        var el = document.getElementById("auth-alert");
-        if (el) {
-          el.textContent = res.error ? res.error.message : "Enviámos o link de recuperação para o seu e-mail.";
-          el.className = "alert show " + (res.error ? "error" : "success");
+        if (res.error) {
+          return setAuthAlert("Erro ao enviar recuperação: " + res.error.message, false);
         }
+        setAuthAlert("Enviámos uma ligação de recuperação para o seu e-mail.", true);
       };
 
       window.loadChildren = async function() {
@@ -470,7 +520,7 @@
           ? '<tr><td colspan="6">Nenhuma sessão registrada ainda. Jogue uma atividade para gerar relatório.</td></tr>'
           : rows.map(function(r) {
             var prec = r.tentativas > 0 ? Math.round((r.acertos / r.tentativas) * 100) : 0;
-            var dt = new Date(r.created_at).toLocaleDateString("pt-BR");
+            var dt = new Date(r.created_at).toLocaleDateString("pt-PT");
             return '<tr><td>' + dt + '</td><td>' + esc(childMap[r.crianca_id] || "Avulsa") + '</td><td>' + esc(r.jogo) + '</td><td>' + r.acertos + ' / ' + r.tentativas + '</td><td><strong>' + prec + '%</strong></td><td>' + r.duracao_seg + 's</td></tr>';
           }).join("");
       };
@@ -768,8 +818,8 @@
               var pRes = await sb.from("profiles").select("*").eq("id", session.user.id).single();
               var profile = pRes?.data;
               if (profile) {
-                var check = profile.role === "admin" ? { ok: true } : (typeof isAccessAllowed === "function" ? isAccessAllowed(profile) : { ok: !!profile.ativo });
-                if (check.ok) {
+                var allowed = profile.role === "admin" || !!profile.ativo;
+                if (allowed) {
                   window.openWorkspace(profile);
                 }
               }
