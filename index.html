@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>SnoezMind</title>
-  <link rel="manifest" href="manifest.json?v=20261121g">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261121g">
+  <link rel="manifest" href="manifest.json?v=20261121h">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261121h">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -18,11 +18,18 @@
       <form id="login-form" onsubmit="event.preventDefault(); handleLoginSubmit();">
         <div class="field">
           <label for="login-email">E-mail</label>
-          <input id="login-email" type="email" placeholder="seu@email.com" required>
+          <input id="login-email" type="email" autocomplete="email" placeholder="seu@email.com" required>
         </div>
         <div class="field">
           <label for="login-pass">Senha</label>
-          <input id="login-pass" type="password" placeholder="••••••••" required>
+          <input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••" required>
+        </div>
+        <div class="field" style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;">
+          <label style="display:flex; align-items:center; gap:8px; margin:0; font-weight:500; cursor:pointer;">
+            <input id="save-creds-checkbox" type="checkbox" style="width:18px; height:18px; min-height:auto; cursor:pointer;">
+            <span>Salvar senha neste navegador</span>
+          </label>
+          <button type="button" class="link-btn" style="font-size:0.82rem;" onclick="clearSavedCreds()">Esquecer</button>
         </div>
         <button type="submit" class="btn btn-gold">Entrar</button>
         <div class="links-row">
@@ -236,9 +243,10 @@
     </main>
   </div>
 
-  <script src="assets/js/config.js?v=20261121g"></script>
+  <script src="assets/js/config.js?v=20261121h"></script>
   <script>
     (function() {
+      var CREDS_KEY = "snoezmind_saved_creds_v1";
       var speechEnabled = true;
       var childrenList = [];
       var selectedChildId = "";
@@ -250,6 +258,38 @@
         el.textContent = msg;
         el.className = "alert show " + (isOk ? "success" : "error");
       }
+
+      function applySavedCredsToForm() {
+        try {
+          var raw = localStorage.getItem(CREDS_KEY);
+          if (!raw) return;
+          var parsed = JSON.parse(raw);
+          var emailInput = document.getElementById("login-email");
+          var passInput = document.getElementById("login-pass");
+          var chk = document.getElementById("save-creds-checkbox");
+          if (emailInput && parsed.email) emailInput.value = parsed.email;
+          if (passInput && parsed.password) passInput.value = parsed.password;
+          if (chk) chk.checked = true;
+        } catch (e) {}
+      }
+
+      function saveOrClearCreds(email, password) {
+        var chk = document.getElementById("save-creds-checkbox");
+        try {
+          if (chk && chk.checked) {
+            localStorage.setItem(CREDS_KEY, JSON.stringify({ email: email, password: password }));
+          } else {
+            localStorage.removeItem(CREDS_KEY);
+          }
+        } catch (e) {}
+      }
+
+      window.clearSavedCreds = function() {
+        try { localStorage.removeItem(CREDS_KEY); } catch (e) {}
+        var chk = document.getElementById("save-creds-checkbox");
+        if (chk) chk.checked = false;
+        setAuthAlert("Credenciais salvas removidas deste navegador.", true);
+      };
 
       function esc(str) {
         return String(str || "")
@@ -274,7 +314,7 @@
         if (!speechEnabled || !("speechSynthesis" in window)) return;
         window.speechSynthesis.cancel();
         var utter = new SpeechSynthesisUtterance(text);
-        utter.lang = "pt-PT";
+        utter.lang = "pt-BR";
         window.speechSynthesis.speak(utter);
       };
 
@@ -353,7 +393,9 @@
           return setAuthAlert("Erro: cliente Supabase não inicializado. Verifique assets/js/config.js.", false);
         }
 
-        setAuthAlert("A verificar credenciais...", true);
+        saveOrClearCreds(email, password);
+        setAuthAlert("Verificando credenciais...", true);
+
         try {
           var res = await sb.auth.signInWithPassword({ email: email, password: password });
           if (res.error) {
@@ -364,7 +406,7 @@
           var profile = profRes.data;
 
           if (profRes.error || !profile) {
-            return setAuthAlert("Autenticado, mas sem perfil em profiles: " + (profRes.error ? profRes.error.message : "registo inexistente"), false);
+            return setAuthAlert("Autenticado, mas sem perfil em profiles: " + (profRes.error ? profRes.error.message : "registro inexistente"), false);
           }
 
           if (profile.role === "admin") {
@@ -380,7 +422,7 @@
           var today = new Date().toISOString().split("T")[0];
           if (profile.data_inicio && today < profile.data_inicio) {
             await sb.auth.signOut();
-            return setAuthAlert("O seu acesso será libertado em " + profile.data_inicio + ".", false);
+            return setAuthAlert("O seu acesso será liberado em " + profile.data_inicio + ".", false);
           }
           if (profile.data_fim && today > profile.data_fim) {
             await sb.auth.signOut();
@@ -402,7 +444,7 @@
         if (typeof sb === "undefined" || !sb || !sb.auth) {
           return setAuthAlert("Erro: cliente Supabase não inicializado.", false);
         }
-        setAuthAlert("A enviar cadastro...", true);
+        setAuthAlert("Enviando cadastro...", true);
         try {
           var res = await sb.auth.signUp({
             email: email,
@@ -430,7 +472,7 @@
         if (res.error) {
           return setAuthAlert("Erro ao enviar recuperação: " + res.error.message, false);
         }
-        setAuthAlert("Enviámos uma ligação de recuperação para o seu e-mail.", true);
+        setAuthAlert("Enviamos um link de recuperação para o seu e-mail.", true);
       };
 
       window.loadChildren = async function() {
@@ -520,7 +562,7 @@
           ? '<tr><td colspan="6">Nenhuma sessão registrada ainda. Jogue uma atividade para gerar relatório.</td></tr>'
           : rows.map(function(r) {
             var prec = r.tentativas > 0 ? Math.round((r.acertos / r.tentativas) * 100) : 0;
-            var dt = new Date(r.created_at).toLocaleDateString("pt-PT");
+            var dt = new Date(r.created_at).toLocaleDateString("pt-BR");
             return '<tr><td>' + dt + '</td><td>' + esc(childMap[r.crianca_id] || "Avulsa") + '</td><td>' + esc(r.jogo) + '</td><td>' + r.acertos + ' / ' + r.tentativas + '</td><td><strong>' + prec + '%</strong></td><td>' + r.duracao_seg + 's</td></tr>';
           }).join("");
       };
@@ -810,6 +852,7 @@
       };
 
       document.addEventListener("DOMContentLoaded", async function() {
+        applySavedCredsToForm();
         if (typeof sb !== "undefined" && sb) {
           try {
             var sRes = await sb.auth.getSession();
