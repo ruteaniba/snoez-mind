@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>SnoezMind</title>
-  <link rel="manifest" href="manifest.json?v=20261121h">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261121h">
+  <link rel="manifest" href="manifest.json?v=20261121i">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261121i">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -24,12 +24,9 @@
           <label for="login-pass">Senha</label>
           <input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••" required>
         </div>
-        <div class="field" style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;">
-          <label style="display:flex; align-items:center; gap:8px; margin:0; font-weight:500; cursor:pointer;">
-            <input id="save-creds-checkbox" type="checkbox" style="width:18px; height:18px; min-height:auto; cursor:pointer;">
-            <span>Salvar senha neste navegador</span>
-          </label>
-          <button type="button" class="link-btn" style="font-size:0.82rem;" onclick="clearSavedCreds()">Esquecer</button>
+        <div class="field" style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+          <input id="save-creds-checkbox" type="checkbox" style="width:18px; height:18px; min-height:auto; cursor:pointer;">
+          <label for="save-creds-checkbox" style="margin:0; font-weight:500; cursor:pointer;">Salvar senha neste navegador</label>
         </div>
         <button type="submit" class="btn btn-gold">Entrar</button>
         <div class="links-row">
@@ -96,8 +93,8 @@
             </select>
           </div>
           <div class="field" style="margin-bottom:0;">
-            <label>Estímulo de fala (voz)</label>
-            <button type="button" class="btn btn-outline" style="width:100%;" onclick="toggleSpeech()">
+            <label for="speech-toggle-btn">Estímulo de fala (voz)</label>
+            <button id="speech-toggle-btn" type="button" class="btn btn-outline" style="width:100%;" onclick="toggleSpeech()">
               Voz Ativada: <span id="speech-status">SIM</span>
             </button>
           </div>
@@ -243,7 +240,7 @@
     </main>
   </div>
 
-  <script src="assets/js/config.js?v=20261121h"></script>
+  <script src="assets/js/config.js?v=20261121i"></script>
   <script>
     (function() {
       var CREDS_KEY = "snoezmind_saved_creds_v1";
@@ -283,13 +280,6 @@
           }
         } catch (e) {}
       }
-
-      window.clearSavedCreds = function() {
-        try { localStorage.removeItem(CREDS_KEY); } catch (e) {}
-        var chk = document.getElementById("save-creds-checkbox");
-        if (chk) chk.checked = false;
-        setAuthAlert("Credenciais salvas removidas deste navegador.", true);
-      };
 
       function esc(str) {
         return String(str || "")
