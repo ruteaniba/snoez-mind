@@ -21,6 +21,27 @@ function playTone(freq, type, duration) {
 function playSuccess() { playTone(600, "sine", 0.1); setTimeout(() => playTone(800, "sine", 0.2), 100); }
 function playError() { playTone(200, "sawtooth", 0.2); }
 
+// === SISTEMA DE VOZ FEMININA ===
+function speak(text) {
+  if (!speechEnabled || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  var utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "pt-BR";
+  
+  // Tenta buscar uma voz feminina no sistema
+  var voices = window.speechSynthesis.getVoices();
+  var femaleVoice = voices.find(v => 
+    v.lang.includes("pt") && 
+    (v.name.includes("Maria") || v.name.includes("Luciana") || v.name.includes("Helena") || v.name.includes("Zira") || v.name.includes("Female") || v.name.includes("Google"))
+  );
+  
+  if (femaleVoice) utter.voice = femaleVoice;
+  utter.pitch = 1.1; // Deixa o tom levemente mais agudo
+  window.speechSynthesis.speak(utter);
+}
+// Força o carregamento das vozes no navegador
+if ("speechSynthesis" in window) { window.speechSynthesis.getVoices(); }
+
 // === SISTEMA DE PONTUAÇÃO E FIM DE JOGO ===
 async function finishGame(gameName, acertos, tentativas, duration) {
   const score = tentativas > 0 ? Math.round((acertos / tentativas) * 100) : 0;
@@ -36,7 +57,7 @@ async function finishGame(gameName, acertos, tentativas, duration) {
       <div class="score">${score}%</div>
       <p>Acertos: ${acertos} | Erros: ${tentativas - acertos}</p>
       <p>Tempo: ${duration} segundos</p>
-      <button class="btn btn-gold" onclick="this.closest('.game-modal-overlay').remove()">Jogar Novamente</button>
+      <button class="btn btn-gold" onclick="this.closest('.game-modal-overlay').remove(); startGame('identificacao_imagem')">Jogar Novamente</button>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -84,14 +105,6 @@ function shuf(arr) {
     var tmp = copy[i]; copy[i] = copy[j]; copy[j] = tmp;
   }
   return copy;
-}
-
-function speak(text) {
-  if (!speechEnabled || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  var utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "pt-BR";
-  window.speechSynthesis.speak(utter);
 }
 
 function toggleSpeech() {
@@ -316,9 +329,9 @@ async function deleteClient(id) {
   showAppAlert("Removido."); loadClients();
 }
 
-// === JOGOS ===
-function startGame(type) {
-  gameState = { type: type, startedAt: Date.now(), acertos: 0, tentativas: 0, selected: null, matchedIds: [], puzzleOrder: [] };
+// === SISTEMA DE NÍVEIS E JOGOS ===
+function startGame(type, level = 1) {
+  gameState = { type: type, level: level, startedAt: Date.now(), acertos: 0, tentativas: 0, selected: null, matchedIds: [], totalAcertos: level > 1 ? gameState.totalAcertos : 0, totalTentativas: level > 1 ? gameState.totalTentativas : 0 };
   
   if (type === "pareamento_cores" || type === "pareamento_sobras") {
     var base = [
@@ -338,11 +351,13 @@ function startGame(type) {
     var bank = [
       { icon: "🐶", word: "Cachorro" }, { icon: "🐱", word: "Gato" }, { icon: "🍎", word: "Maçã" }, { icon: "🚗", word: "Carro" },
       { icon: "⭐", word: "Estrela" }, { icon: "🐘", word: "Elefante" }, { icon: "🍌", word: "Banana" }, { icon: "✈️", word: "Avião" },
-      { icon: "🌻", word: "Girassol" }, { icon: "🐟", word: "Peixe" }, { icon: "🍇", word: "Uva" }, { icon: "🚲", word: "Bicicleta" }
+      { icon: "🌻", word: "Girassol" }, { icon: "🐟", word: "Peixe" }, { icon: "🍇", word: "Uva" }, { icon: "🚲", word: "Bicicleta" },
+      { icon: "🦁", word: "Leão" }, { icon: "🍓", word: "Morango" }, { icon: "🚁", word: "Helicóptero" }, { icon: "🌈", word: "Arco-íris" }
     ];
-    var options = shuf(bank).slice(0, 6); // Pega 6 opções aleatórias
+    var maxOptions = level === 1 ? 4 : (level === 2 ? 6 : 9);
+    var options = shuf(bank).slice(0, maxOptions);
     gameState.target = options[Math.floor(Math.random() * options.length)]; gameState.options = options;
-    speak("Encontre: " + gameState.target.word); renderIdentifyGame();
+    speak("Nível " + level + ". Encontre: " + gameState.target.word); renderIdentifyGame();
   } else if (type === "ligar_imagens") {
     var pairs = [
       { id: 1, left: "🔑", right: "🔒", label: "Chave e cadeado" }, { id: 2, left: "🖌️", right: "🎨", label: "Pincel e tinta" },
@@ -382,13 +397,13 @@ async function clickPairTile(id) {
   if (!gameState.selected) { gameState.selected = id; speak(clicked.label); renderPairGame(); return; }
   
   var prev = gameState.items.find(function(x) { return x.id === gameState.selected; });
-  gameState.tentativas += 1; gameState.selected = null;
+  gameState.tentativas += 1; gameState.totalTentativas++; gameState.selected = null;
   
   if (prev.key === clicked.key) {
-    gameState.acertos += 1; gameState.matchedIds.push(prev.id, clicked.id); playSuccess();
+    gameState.acertos += 1; gameState.totalAcertos++; gameState.matchedIds.push(prev.id, clicked.id); playSuccess();
     if (gameState.matchedIds.length / 2 === gameState.totalPairs) {
       var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-      finishGame("Pareamento", gameState.acertos, gameState.tentativas, dur);
+      finishGame("Pareamento", gameState.totalAcertos, gameState.totalTentativas, dur);
     }
   } else { playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); }
   renderPairGame();
@@ -396,6 +411,29 @@ async function clickPairTile(id) {
 
 // --- JOGO: QUEBRA-CABEÇA REAL 3x3 ---
 let puzzlePieces = []; let puzzleSolved = false;
+const puzzleImages = [
+  "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&h=400&fit=crop", // Gato
+  "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400&h=400&fit=crop", // Cachorro
+  "https://images.unsplash.com/photo-1557050543-4d5f4e07ef46?w=400&h=400&fit=crop", // Elefante
+  "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=400&h=400&fit=crop", // Gato 2
+  "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=400&fit=crop", // Cachorro 2
+  "https://images.unsplash.com/photo-1474511320723-9a56873867b5?w=400&h=400&fit=crop", // Raposa
+  "https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=400&h=400&fit=crop", // Panda
+  "https://images.unsplash.com/photo-1591871937573-74dbba515c4c?w=400&h=400&fit=crop", // Coala
+  "https://images.unsplash.com/photo-1534188753412-3e26d0d618d6?w=400&h=400&fit=crop", // Lobo
+  "https://images.unsplash.com/photo-1552410260-0fd9b577afa6?w=400&h=400&fit=crop", // Leão
+  "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400&h=400&fit=crop", // Pug
+  "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400&h=400&fit=crop", // Gato 3
+  "https://images.unsplash.com/photo-1529778873920-4da4926a72c2?w=400&h=400&fit=crop", // Gato 4
+  "https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?w=400&h=400&fit=crop", // Cachorro 3
+  "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=400&h=400&fit=crop", // Cachorro 4
+  "https://images.unsplash.com/photo-1548247416-ec66f4900b2e?w=400&h=400&fit=crop", // Tigre
+  "https://images.unsplash.com/photo-1507666405895-422eee7d517f?w=400&h=400&fit=crop", // Macaco
+  "https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=400&fit=crop", // Hamster
+  "https://images.unsplash.com/photo-1596706589401-13f9fb8b7998?w=400&h=400&fit=crop", // Papagaio
+  "https://images.unsplash.com/photo-1555169062-013468b47731?w=400&h=400&fit=crop"  // Coruja
+];
+
 function startRealPuzzle() {
   gameState = { type: "quebra_cabeca", startedAt: Date.now(), acertos: 0, tentativas: 0 };
   puzzleSolved = false;
@@ -406,10 +444,10 @@ function startRealPuzzle() {
 
 function renderRealPuzzle() {
   const board = document.getElementById("game-board");
-  const imgUrl = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&h=400&fit=crop"; // Gatinho
+  const imgUrl = puzzleImages[Math.floor(Math.random() * puzzleImages.length)];
   let html = `
     <div style="text-align:center; margin-bottom:15px;">
-      <button class="btn btn-outline btn-sm" onclick="startRealPuzzle()">Embaralhar</button>
+      <button class="btn btn-outline btn-sm" onclick="startRealPuzzle()">Trocar Imagem / Embaralhar</button>
     </div>
     <div class="puzzle-grid" id="puzzle-board">
   `;
@@ -440,6 +478,12 @@ async function dropPiece(e) {
     const temp = puzzlePieces[draggedIndex]; puzzlePieces[draggedIndex] = puzzlePieces[droppedIndex]; puzzlePieces[droppedIndex] = temp;
     gameState.tentativas++;
     document.querySelector(".dragging")?.classList.remove("dragging");
+    
+    // Toca som de acerto se a peça arrastada caiu no lugar certo
+    if (puzzlePieces[draggedIndex] === draggedIndex || puzzlePieces[droppedIndex] === droppedIndex) {
+      playSuccess();
+    }
+    
     renderRealPuzzle();
     checkPuzzleSolved();
   }
@@ -460,15 +504,23 @@ function renderIdentifyGame() {
   var board = document.getElementById("game-board");
   var btns = [];
   gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickIdentifyOption(\'' + opt.word + '\')"><span style="font-size:3rem;">' + opt.icon + '</span></button>'); });
-  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Encontre: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.word + '</span></strong><br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="speak(\'' + gameState.target.word + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Encontre: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.word + '</span></strong><br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="speak(\'' + gameState.target.word + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
 }
 
 async function clickIdentifyOption(word) {
-  gameState.tentativas += 1;
+  gameState.tentativas++; gameState.totalTentativas++;
   if (word === gameState.target.word) {
-    gameState.acertos += 1; playSuccess();
-    var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-    finishGame("Identificação de Imagem", gameState.acertos, gameState.tentativas, dur);
+    gameState.acertos++; gameState.totalAcertos++; playSuccess();
+    
+    if (gameState.level < 3) {
+      speak("Muito bem! Preparando nível " + (gameState.level + 1));
+      setTimeout(() => {
+        startGame("identificacao_imagem", gameState.level + 1);
+      }, 2000);
+    } else {
+      var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
+      finishGame("Identificação de Imagem (3 Níveis)", gameState.totalAcertos, gameState.totalTentativas, dur);
+    }
   } else {
     playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
     speak("Tente novamente");
@@ -495,12 +547,12 @@ function selectLeft(id) { if (gameState.matchedIds.indexOf(id) !== -1) return; g
 
 async function selectRight(id) {
   if (!gameState.selectedLeft || gameState.matchedIds.indexOf(id) !== -1) return;
-  gameState.tentativas += 1;
+  gameState.tentativas++; gameState.totalTentativas++;
   if (gameState.selectedLeft === id) {
-    gameState.acertos += 1; gameState.matchedIds.push(id); playSuccess(); speak("Boa ligação!");
+    gameState.acertos++; gameState.totalAcertos++; gameState.matchedIds.push(id); playSuccess(); speak("Boa ligação!");
     if (gameState.matchedIds.length === gameState.pairs.length) {
       var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-      finishGame("Ligar Imagens", gameState.acertos, gameState.tentativas, dur);
+      finishGame("Ligar Imagens", gameState.totalAcertos, gameState.totalTentativas, dur);
     }
   } else {
     playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); speak("Não combina.");
@@ -517,11 +569,11 @@ function renderConceptsGame() {
 }
 
 async function clickConceptOption(label) {
-  gameState.tentativas += 1;
+  gameState.tentativas++; gameState.totalTentativas++;
   if (label === gameState.target.label) {
-    gameState.acertos += 1; playSuccess();
+    gameState.acertos++; gameState.totalAcertos++; playSuccess();
     var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-    finishGame("Letras, Números e Formas", gameState.acertos, gameState.tentativas, dur);
+    finishGame("Letras, Números e Formas", gameState.totalAcertos, gameState.totalTentativas, dur);
   } else {
     playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
     speak("Tente de novo");
