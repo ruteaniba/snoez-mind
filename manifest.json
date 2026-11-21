@@ -1,0 +1,9 @@
+{
+  "name": "SnoezMind",
+  "short_name": "SnoezMind",
+  "start_url": "/SnoezMind/index.html",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#C59B27",
+  "orientation": "portrait"
+}
