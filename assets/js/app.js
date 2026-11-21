@@ -111,12 +111,12 @@ function switchWorkspaceTab(tab) {
   document.querySelectorAll(".tab-btn").forEach(function(btn) {
     btn.classList.toggle("active", btn.getAttribute("data-tab") === tab);
   });
-  ["jogos", "criancas", "emocional"].forEach(function(t) {
+  // Removemos o "criancas" da lista de abas
+  ["jogos", "emocional"].forEach(function(t) {
     var sec = document.getElementById("tab-" + t);
     if (sec) sec.classList.toggle("hidden", t !== tab);
   });
-  if (tab === "criancas") { loadChildren(); loadReports(); }
-  else if (tab === "emocional") { loadClients(); }
+  if (tab === "emocional") { loadClients(); }
 }
 
 function showAppAlert(msg, type) {
@@ -137,7 +137,9 @@ function openWorkspace(profile) {
   var emailEl = document.getElementById("user-email");
   if (emailEl && profile) emailEl.textContent = profile.email || "";
   if (profile && profile.role === "admin") document.getElementById("admin-link")?.classList.remove("hidden");
-  loadChildren(); loadReports(); loadClients();
+  
+  // Removemos o loadChildren() e loadReports() daqui, pois a tela sumiu.
+  loadClients(); 
 }
 
 async function logoutUser() {
@@ -465,23 +467,51 @@ async function checkPuzzleSolved() {
   }
 }
 
-function renderIdentifyGame() {
+function renderIdentifyGame(feedbackMsg = "", feedbackType = "") {
   var board = document.getElementById("game-board");
   var btns = [];
   gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickIdentifyOption(\'' + opt.word + '\')"><span style="font-size:3rem;">' + opt.icon + '</span></button>'); });
-  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '<br>Encontre: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.word + '</span></strong></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  
+  var feedbackHtml = feedbackMsg ? `<div style="text-align:center; font-weight:bold; color:${feedbackType === 'success' ? '#22C55E' : '#EF4444'}; margin-bottom:10px; font-size:1.2rem;">${feedbackMsg}</div>` : '<div style="height:24px; margin-bottom:10px;"></div>';
+
+  board.innerHTML = `
+    ${feedbackHtml}
+    <div style="text-align:center;margin-bottom:15px;">
+      <strong>Acertos: ${gameState.levelCorrects} / ${TARGET_CORRECT}</strong><br>
+      Encontre: <span style="color:var(--gold-dark);font-size:1.5rem;">${gameState.target.word}</span>
+    </div>
+    <div class="tiles-grid">${btns.join("")}</div>
+  `;
 }
 
 async function clickIdentifyOption(word) {
   gameState.tentativas++; gameState.totalTentativas++;
   if (word === gameState.target.word) {
     gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; playSuccess();
+    
     if (gameState.levelCorrects >= TARGET_CORRECT) {
-        var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-        finishGame("Identificação de Imagem", gameState.totalAcertos, gameState.totalTentativas, dur);
+       var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
+       finishGame("Identificação de Imagem", gameState.totalAcertos, gameState.totalTentativas, dur);
+    } else {
+       renderIdentifyGame("Acertou! 🎉", "success");
+       setTimeout(() => {
+          var bank = [
+            { icon: "🐶", word: "Cachorro" }, { icon: "🐱", word: "Gato" }, { icon: "🍎", word: "Maçã" }, { icon: "🚗", word: "Carro" },
+            { icon: "⭐", word: "Estrela" }, { icon: "🐘", word: "Elefante" }, { icon: "🍌", word: "Banana" }, { icon: "✈️", word: "Avião" },
+            { icon: "🌻", word: "Girassol" }, { icon: "🐟", word: "Peixe" }, { icon: "🍇", word: "Uva" }, { icon: "🚲", word: "Bicicleta" },
+            { icon: "🦁", word: "Leão" }, { icon: "🍓", word: "Morango" }, { icon: "🚁", word: "Helicóptero" }, { icon: "🌈", word: "Arco-íris" }
+          ];
+          var maxOptions = 4;
+          var options = shuf(bank).slice(0, maxOptions);
+          gameState.target = options[Math.floor(Math.random() * options.length)]; gameState.options = options;
+          renderIdentifyGame();
+       }, 1000);
     }
   } else {
-    playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
+    playError(); 
+    document.getElementById("game-board").classList.add("shake"); 
+    setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
+    renderIdentifyGame("Errou! Tente novamente. ❌", "error");
   }
 }
 
@@ -517,23 +547,49 @@ async function selectRight(id) {
   gameState.selectedLeft = null; renderConnectGame();
 }
 
-function renderConceptsGame() {
+function renderConceptsGame(feedbackMsg = "", feedbackType = "") {
   var board = document.getElementById("game-board");
   var btns = [];
   gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickConceptOption(\'' + opt.label + '\')"><span style="font-size:2.5rem;">' + opt.display + '</span></button>'); });
-  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '<br>Toque em: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.label + '</span></strong></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  
+  var feedbackHtml = feedbackMsg ? `<div style="text-align:center; font-weight:bold; color:${feedbackType === 'success' ? '#22C55E' : '#EF4444'}; margin-bottom:10px; font-size:1.2rem;">${feedbackMsg}</div>` : '<div style="height:24px; margin-bottom:10px;"></div>';
+
+  board.innerHTML = `
+    ${feedbackHtml}
+    <div style="text-align:center;margin-bottom:15px;">
+      <strong>Acertos: ${gameState.levelCorrects} / ${TARGET_CORRECT}</strong><br>
+      Toque em: <span style="color:var(--gold-dark);font-size:1.5rem;">${gameState.target.label}</span>
+    </div>
+    <div class="tiles-grid">${btns.join("")}</div>
+  `;
 }
 
 async function clickConceptOption(label) {
   gameState.tentativas++; gameState.totalTentativas++;
   if (label === gameState.target.label) {
     gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; playSuccess();
+    
     if (gameState.levelCorrects >= TARGET_CORRECT) {
       var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-      finishGame("Identificação de Conceitos", gameState.acertos, gameState.tentativas, dur);
+      finishGame("Identificação de Conceitos", gameState.totalAcertos, gameState.totalTentativas, dur);
+    } else {
+      renderConceptsGame("Acertou! 🎉", "success");
+      setTimeout(() => {
+        var cBank = [
+          { display: "A", label: "Letra A" }, { display: "7", label: "Número 7" }, { display: "🔵", label: "Círculo azul" },
+          { display: "🔺", label: "Triângulo" }, { display: "🦋", label: "Borboleta" }, { display: "🟨", label: "Quadrado amarelo" },
+          { display: "B", label: "Letra B" }, { display: "3", label: "Número 3" }, { display: "🟩", label: "Quadrado verde" }, { display: "⭐", label: "Estrela" }
+        ];
+        var opts = shuf(cBank).slice(0, 6);
+        gameState.target = opts[Math.floor(Math.random() * opts.length)]; gameState.options = opts;
+        renderConceptsGame();
+      }, 1000);
     }
   } else {
-    playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
+    playError(); 
+    document.getElementById("game-board").classList.add("shake"); 
+    setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
+    renderConceptsGame("Errou! Tente de novo. ❌", "error");
   }
 }
 

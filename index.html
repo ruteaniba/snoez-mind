@@ -95,7 +95,7 @@
 
       <div class="nav-tabs">
         <button type="button" class="tab-btn active" data-tab="jogos" onclick="switchWorkspaceTab('jogos')">Jogos Terapêuticos</button>
-        <button type="button" class="tab-btn" data-tab="criancas" onclick="switchWorkspaceTab('criancas')">Pacientes & Relatórios</button>
+        
         <button type="button" class="tab-btn" data-tab="emocional" onclick="switchWorkspaceTab('emocional')">Terapia Emocional & Anamnese</button>
       </div>
 
@@ -119,65 +119,7 @@
         </div>
       </section>
 
-      <section id="tab-criancas" class="card hidden">
-        <h3>Cadastro de Pacientes</h3>
-        <p class="subtitle">Registre pacientes com TEA, Síndrome de Down, TDAH ou outras condições para acompanhar a evolução.</p>
-
-        <form id="child-form" class="grid-2" onsubmit="event.preventDefault(); saveChild();">
-          <div class="field">
-            <label for="child-nome">Nome do Paciente</label>
-            <input id="child-nome" type="text" required>
-          </div>
-          <div class="field">
-            <label for="child-idade">Idade</label>
-            <input id="child-idade" type="number" min="1" max="99">
-          </div>
-          <div class="field">
-            <label for="child-diag">Condição / Foco (ex.: TEA, TDAH, Down, Fala)</label>
-            <input id="child-diag" type="text">
-          </div>
-          <div class="field">
-            <label for="child-obs">Observações / Reforçadores</label>
-            <input id="child-obs" type="text">
-          </div>
-          <div class="field" style="grid-column: 1 / -1;">
-            <button type="submit" class="btn btn-gold">Salvar Criança</button>
-          </div>
-        </form>
-
-        <h3 style="margin-top:20px;">Pacientes Cadastrados</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Idade</th>
-                <th>Condição / Foco</th>
-                <th>Observações</th>
-                <th>Ação</th>
-              </tr>
-            </thead>
-            <tbody id="children-tbody"></tbody>
-          </table>
-        </div>
-
-        <h3 style="margin-top:24px;">Relatório de Acompanhamento (Jogos)</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Criança</th>
-                <th>Jogo</th>
-                <th>Acertos / Tentativas</th>
-                <th>Precisão</th>
-                <th>Tempo</th>
-              </tr>
-            </thead>
-            <tbody id="reports-tbody"></tbody>
-          </table>
-        </div>
-      </section>
+      
 
       <section id="tab-emocional" class="card hidden">
         <h3>Terapia Emocional — Gestão de Pacientes e Anamnese</h3>
