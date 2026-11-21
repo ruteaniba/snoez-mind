@@ -3,7 +3,7 @@ let clientsCache = [];
 let selectedChildId = "";
 let gameState = null;
 const CREDS_KEY = "snoezmind_saved_creds_v1";
-const TARGET_CORRECT = 7;
+const TARGET_CORRECT = 10;
 
 function playTone(freq, type, duration, volume = 0.1) {
   try {
@@ -37,18 +37,20 @@ async function finishGame(gameName, acertos, tentativas, duration) {
   
   const overlay = document.createElement("div");
   overlay.className = "game-modal-overlay";
-  // Força o modal a ficar no topo da tela para não tampar o quebra-cabeça
-  overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); display:flex; justify-content:center; align-items:flex-start; padding-top:30px; z-index:9999; opacity:0; transition:opacity 0.3s;";
+  
+  // Fundo transparente, aviso fixo no topo e sem bloquear o resto da tela
+  overlay.style.cssText = "position:fixed; top:15px; left:0; width:100%; display:flex; justify-content:center; z-index:9999; pointer-events:none; opacity:0; transition:opacity 0.3s;";
   
   overlay.innerHTML = `
-    <div class="game-modal" style="background:#fff; padding:20px; border-radius:10px; text-align:center; max-width:400px; width:90%; box-shadow:0 4px 15px rgba(0,0,0,0.2);">
-      <h2 style="margin-top:0;">Fim do Jogo!</h2>
-      <p><strong>${gameName}</strong></p>
-      <div class="score" style="font-size:2rem; font-weight:bold; color:#EAB308; margin:10px 0;">${score}%</div>
-      <p>Acertos: ${acertos} | Erros: ${tentativas - acertos}</p>
-      <p>Tempo: ${duration} segundos</p>
-      <button class="btn btn-gold" onclick="this.closest('.game-modal-overlay').remove(); startGame('${gameName.toLowerCase().includes('identifica') ? 'identificacao_imagem' : 'pareamento_cores'}')">Jogar Novamente</button>
-      <button class="btn btn-outline" style="margin-left:10px;" onclick="this.closest('.game-modal-overlay').remove();">Fechar</button>
+    <div class="game-modal" style="background:#fff; padding:15px 20px; border-radius:10px; text-align:center; max-width:400px; width:90%; box-shadow:0 4px 15px rgba(0,0,0,0.3); border:2px solid #EAB308; pointer-events:auto;">
+      <h2 style="margin-top:0; margin-bottom:5px; font-size:1.2rem; color:#333;">Fim do Jogo!</h2>
+      <p style="margin:5px 0; color:#555;"><strong>${gameName}</strong></p>
+      <div class="score" style="font-size:1.8rem; font-weight:bold; color:#EAB308; margin:5px 0;">${score}%</div>
+      <p style="margin:5px 0; font-size:0.9rem; color:#666;">Acertos: ${acertos} | Erros: ${tentativas - acertos} | Tempo: ${duration}s</p>
+      <div style="display:flex; gap:10px; justify-content:center; margin-top:10px;">
+        <button class="btn btn-gold btn-sm" onclick="this.closest('.game-modal-overlay').remove(); startGame('${gameName.toLowerCase().includes('identifica') ? 'identificacao_imagem' : (gameName.toLowerCase().includes('conceito') ? 'identificacao_conceitos' : (gameName.toLowerCase().includes('quebra') ? 'quebra_cabeca' : 'pareamento_cores'))}')">Jogar Novamente</button>
+        <button class="btn btn-outline btn-sm" onclick="this.closest('.game-modal-overlay').remove();">Fechar</button>
+      </div>
     </div>
   `;
   document.body.appendChild(overlay);
