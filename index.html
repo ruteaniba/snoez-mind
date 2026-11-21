@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>SnoezMind</title>
-  <link rel="manifest" href="manifest.json?v=20261121b">
-  <link rel="stylesheet" href="assets/css/style.css?v=20261121b">
+  <link rel="manifest" href="manifest.json?v=20261121c">
+  <link rel="stylesheet" href="assets/css/style.css?v=20261121c">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -247,9 +247,41 @@
       var alertEl = document.getElementById("auth-alert");
       if (alertEl) alertEl.classList.remove("show");
     };
+
+    window.setAuthMsg = function(msg, isOk) {
+      var el = document.getElementById("auth-alert");
+      if (!el) return alert(msg);
+      el.textContent = msg;
+      el.className = "alert show " + (isOk ? "success" : "error");
+    };
+
+    window.handleRegisterSubmit = async function() {
+      var nome = (document.getElementById("reg-nome")?.value || "").trim();
+      var email = (document.getElementById("reg-email")?.value || "").trim();
+      var whatsapp = (document.getElementById("reg-whatsapp")?.value || "").replace(/\D/g, "");
+      var password = document.getElementById("reg-pass")?.value || "";
+
+      if (typeof sb === "undefined" || !sb || !sb.auth) {
+        return window.setAuthMsg("Supabase não inicializado. Verifique assets/js/config.js.", false);
+      }
+      window.setAuthMsg("Enviando cadastro...", true);
+      try {
+        var res = await sb.auth.signUp({
+          email: email,
+          password: password,
+          options: { data: { nome: nome, whatsapp: whatsapp } }
+        });
+        if (res.error) {
+          return window.setAuthMsg("Erro ao cadastrar: " + res.error.message, false);
+        }
+        window.setAuthMsg("Cadastro enviado! Aguarde a ativação pelo administrador.", true);
+      } catch (err) {
+        window.setAuthMsg("Falha inesperada: " + (err && err.message ? err.message : err), false);
+      }
+    };
   </script>
-  <script src="assets/js/config.js?v=20261121b"></script>
-  <script src="assets/js/auth.js?v=20261121b"></script>
-  <script src="assets/js/app.js?v=20261121b"></script>
+  <script src="assets/js/config.js?v=20261121c"></script>
+  <script src="assets/js/auth.js?v=20261121c"></script>
+  <script src="assets/js/app.js?v=20261121c"></script>
 </body>
 </html>
