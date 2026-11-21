@@ -1,4 +1,3 @@
-let speechEnabled = true;
 let childrenList = [];
 let clientsCache = [];
 let selectedChildId = "";
@@ -7,7 +6,6 @@ const CREDS_KEY = "snoezmind_saved_creds_v1";
 const TARGET_CORRECT = 7;
 
 function playTone(freq, type, duration, volume = 0.1) {
-  if (!speechEnabled) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -33,40 +31,28 @@ function playError() {
   playTone(180, "triangle", 0.3, 0.06); 
 }
 
-function speak(text) {
-  if (!speechEnabled || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  var utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "pt-BR";
-  var voices = window.speechSynthesis.getVoices();
-  var femaleVoice = voices.find(v => 
-    v.lang.includes("pt") && 
-    (v.name.includes("Maria") || v.name.includes("Luciana") || v.name.includes("Helena") || v.name.includes("Zira") || v.name.includes("Female") || v.name.includes("Google"))
-  );
-  if (femaleVoice) utter.voice = femaleVoice;
-  utter.pitch = 1.1;
-  window.speechSynthesis.speak(utter);
-}
-if ("speechSynthesis" in window) { window.speechSynthesis.getVoices(); }
-
 async function finishGame(gameName, acertos, tentativas, duration) {
   const score = tentativas > 0 ? Math.round((acertos / tentativas) * 100) : 0;
   playSuccess();
-  speak("Fim de jogo! Sua pontuação foi de " + score + " por cento.");
+  
   const overlay = document.createElement("div");
   overlay.className = "game-modal-overlay";
+  // Força o modal a ficar no topo da tela para não tampar o quebra-cabeça
+  overlay.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); display:flex; justify-content:center; align-items:flex-start; padding-top:30px; z-index:9999; opacity:0; transition:opacity 0.3s;";
+  
   overlay.innerHTML = `
-    <div class="game-modal">
-      <h2>Fim do Jogo!</h2>
+    <div class="game-modal" style="background:#fff; padding:20px; border-radius:10px; text-align:center; max-width:400px; width:90%; box-shadow:0 4px 15px rgba(0,0,0,0.2);">
+      <h2 style="margin-top:0;">Fim do Jogo!</h2>
       <p><strong>${gameName}</strong></p>
-      <div class="score">${score}%</div>
+      <div class="score" style="font-size:2rem; font-weight:bold; color:#EAB308; margin:10px 0;">${score}%</div>
       <p>Acertos: ${acertos} | Erros: ${tentativas - acertos}</p>
       <p>Tempo: ${duration} segundos</p>
       <button class="btn btn-gold" onclick="this.closest('.game-modal-overlay').remove(); startGame('${gameName.toLowerCase().includes('identifica') ? 'identificacao_imagem' : 'pareamento_cores'}')">Jogar Novamente</button>
+      <button class="btn btn-outline" style="margin-left:10px;" onclick="this.closest('.game-modal-overlay').remove();">Fechar</button>
     </div>
   `;
   document.body.appendChild(overlay);
-  setTimeout(() => overlay.classList.add("show"), 10);
+  setTimeout(() => overlay.style.opacity = "1", 10);
   await recordGameSession(gameName, acertos, tentativas, duration);
 }
 
@@ -108,13 +94,6 @@ function shuf(arr) {
     var tmp = copy[i]; copy[i] = copy[j]; copy[j] = tmp;
   }
   return copy;
-}
-
-function toggleSpeech() {
-  speechEnabled = !speechEnabled;
-  var span = document.getElementById("speech-status");
-  if (span) span.textContent = speechEnabled ? "SIM" : "NÃO";
-  if (speechEnabled) speak("Estímulo de fala ativado");
 }
 
 function switchTab(tab) {
@@ -336,7 +315,6 @@ function startGame(type, level = 1) {
     base.forEach(function(b, idx) { items.push({ id: "a-" + idx, key: b.key, label: b.label, color: b.color }); items.push({ id: "b-" + idx, key: b.key, label: b.label, color: b.color }); });
     if (type === "pareamento_sobras") { items.push({ id: "extra-1", key: "Marrom", label: "Marrom", color: "#78350F" }); items.push({ id: "extra-2", key: "Rosa", label: "Rosa", color: "#EC4899" }); }
     gameState.items = shuf(items); gameState.totalPairs = base.length;
-    speak(type === "pareamento_sobras" ? "Pareamento com sobras. Encontre os pares iguais." : "Pareamento colorido. Encontre as cores iguais.");
     renderPairGame();
   } else if (type === "quebra_cabeca") {
     startRealPuzzle();
@@ -350,7 +328,7 @@ function startGame(type, level = 1) {
     var maxOptions = level === 1 ? 4 : (level === 2 ? 6 : 9);
     var options = shuf(bank).slice(0, maxOptions);
     gameState.target = options[Math.floor(Math.random() * options.length)]; gameState.options = options;
-    speak("Nível " + level + ". Encontre: " + gameState.target.word); renderIdentifyGame();
+    renderIdentifyGame();
   } else if (type === "ligar_imagens") {
     var pairs = [
       { id: 1, left: "🔑", right: "🔒", label: "Chave e cadeado" }, { id: 2, left: "🖌️", right: "🎨", label: "Pincel e tinta" },
@@ -358,7 +336,7 @@ function startGame(type, level = 1) {
       { id: 5, left: "☕", right: "🥐", label: "Café e pão" }, { id: 6, left: "🧼", right: "💧", label: "Sabão e água" }
     ];
     gameState.pairs = pairs; gameState.leftItems = shuf(pairs.map(function(p) { return { id: p.id, icon: p.left }; })); gameState.rightItems = shuf(pairs.map(function(p) { return { id: p.id, icon: p.right }; })); gameState.selectedLeft = null;
-    speak("Ligue uma imagem a outra que combina."); renderConnectGame();
+    renderConnectGame();
   } else if (type === "identificacao_conceitos") {
     var cBank = [
       { display: "A", label: "Letra A" }, { display: "7", label: "Número 7" }, { display: "🔵", label: "Círculo azul" },
@@ -367,7 +345,7 @@ function startGame(type, level = 1) {
     ];
     var opts = shuf(cBank).slice(0, 6);
     gameState.target = opts[Math.floor(Math.random() * opts.length)]; gameState.options = opts;
-    speak("Toque em: " + gameState.target.label); renderConceptsGame();
+    renderConceptsGame();
   }
 }
 
@@ -385,19 +363,20 @@ function renderPairGame() {
 async function clickPairTile(id) {
   if (gameState.matchedIds.indexOf(id) !== -1 || gameState.selected === id) return;
   var clicked = gameState.items.find(function(x) { return x.id === id; });
-  if (!gameState.selected) { gameState.selected = id; speak(clicked.label); renderPairGame(); return; }
+  if (!gameState.selected) { gameState.selected = id; renderPairGame(); return; }
   var prev = gameState.items.find(function(x) { return x.id === gameState.selected; });
   gameState.tentativas += 1; gameState.totalTentativas++; gameState.selected = null;
   if (prev.key === clicked.key) {
     gameState.acertos += 1; gameState.totalAcertos++; gameState.levelCorrects++; gameState.matchedIds.push(prev.id, clicked.id); playSuccess();
-    if (gameState.levelCorrects >= TARGET_CORRECT) {
-      speak("Parabéns! Você passou para o nível " + (gameState.level + 1));
-      setTimeout(() => startGame(gameState.type, gameState.level + 1), 2000);
-    } else if (gameState.matchedIds.length / 2 === gameState.totalPairs) {
-      speak("Muito bem! Continuando para a próxima rodada.");
-      setTimeout(() => startGame(gameState.type, gameState.level), 2000);
+    if (gameState.levelCorrects >= TARGET_CORRECT || gameState.matchedIds.length / 2 === gameState.totalPairs) {
+       var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
+       finishGame("Pareamento", gameState.acertos, gameState.tentativas, dur);
     }
-  } else { playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); }
+  } else { 
+      playError(); 
+      document.getElementById("game-board").classList.add("shake"); 
+      setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); 
+  }
   renderPairGame();
 }
 
@@ -430,7 +409,6 @@ function startRealPuzzle() {
   puzzleSolved = false;
   gameState.currentPuzzleImage = puzzleImages[Math.floor(Math.random() * puzzleImages.length)];
   puzzlePieces = [0, 1, 2, 3, 4, 5, 6, 7, 8].sort(() => Math.random() - 0.5);
-  speak("Quebra-cabeça. Arraste as peças para montar a imagem.");
   renderRealPuzzle();
 }
 
@@ -491,7 +469,7 @@ function renderIdentifyGame() {
   var board = document.getElementById("game-board");
   var btns = [];
   gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickIdentifyOption(\'' + opt.word + '\')"><span style="font-size:3rem;">' + opt.icon + '</span></button>'); });
-  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '<br>Encontre: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.word + '</span></strong><br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="speak(\'' + gameState.target.word + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '<br>Encontre: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.word + '</span></strong></div><div class="tiles-grid">' + btns.join("") + '</div>';
 }
 
 async function clickIdentifyOption(word) {
@@ -499,31 +477,11 @@ async function clickIdentifyOption(word) {
   if (word === gameState.target.word) {
     gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; playSuccess();
     if (gameState.levelCorrects >= TARGET_CORRECT) {
-      if (gameState.level < 3) {
-        speak("Muito bem! Você passou para o nível " + (gameState.level + 1));
-        setTimeout(() => { startGame("identificacao_imagem", gameState.level + 1); }, 2000);
-      } else {
         var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-        finishGame("Identificação de Imagem (3 Níveis)", gameState.totalAcertos, gameState.totalTentativas, dur);
-      }
-    } else {
-      speak("Muito bem! " + gameState.levelCorrects + " de " + TARGET_CORRECT);
-      setTimeout(() => {
-        var bank = [
-          { icon: "🐶", word: "Cachorro" }, { icon: "🐱", word: "Gato" }, { icon: "🍎", word: "Maçã" }, { icon: "🚗", word: "Carro" },
-          { icon: "⭐", word: "Estrela" }, { icon: "🐘", word: "Elefante" }, { icon: "🍌", word: "Banana" }, { icon: "✈️", word: "Avião" },
-          { icon: "🌻", word: "Girassol" }, { icon: "🐟", word: "Peixe" }, { icon: "🍇", word: "Uva" }, { icon: "🚲", word: "Bicicleta" },
-          { icon: "🦁", word: "Leão" }, { icon: "🍓", word: "Morango" }, { icon: "🚁", word: "Helicóptero" }, { icon: "🌈", word: "Arco-íris" }
-        ];
-        var maxOptions = gameState.level === 1 ? 4 : (gameState.level === 2 ? 6 : 9);
-        var options = shuf(bank).slice(0, maxOptions);
-        gameState.target = options[Math.floor(Math.random() * options.length)]; gameState.options = options;
-        speak("Encontre: " + gameState.target.word); renderIdentifyGame();
-      }, 1500);
+        finishGame("Identificação de Imagem", gameState.totalAcertos, gameState.totalTentativas, dur);
     }
   } else {
     playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
-    speak("Tente novamente");
   }
 }
 
@@ -548,16 +506,13 @@ async function selectRight(id) {
   if (!gameState.selectedLeft || gameState.matchedIds.indexOf(id) !== -1) return;
   gameState.tentativas++; gameState.totalTentativas++;
   if (gameState.selectedLeft === id) {
-    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; gameState.matchedIds.push(id); playSuccess(); speak("Boa ligação!");
-    if (gameState.levelCorrects >= TARGET_CORRECT) {
-      speak("Parabéns! Você passou para o nível " + (gameState.level + 1));
-      setTimeout(() => startGame("ligar_imagens", gameState.level + 1), 2000);
-    } else if (gameState.matchedIds.length === gameState.pairs.length) {
-      speak("Muito bem! Continuando.");
-      setTimeout(() => startGame("ligar_imagens", gameState.level), 2000);
+    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; gameState.matchedIds.push(id); playSuccess();
+    if (gameState.levelCorrects >= TARGET_CORRECT || gameState.matchedIds.length === gameState.pairs.length) {
+       var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
+       finishGame("Ligar Imagens", gameState.acertos, gameState.tentativas, dur);
     }
   } else {
-    playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); speak("Não combina.");
+    playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
   }
   gameState.selectedLeft = null; renderConnectGame();
 }
@@ -566,7 +521,7 @@ function renderConceptsGame() {
   var board = document.getElementById("game-board");
   var btns = [];
   gameState.options.forEach(function(opt) { btns.push('<button type="button" class="tile-btn" onclick="clickConceptOption(\'' + opt.label + '\')"><span style="font-size:2.5rem;">' + opt.display + '</span></button>'); });
-  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '<br>Toque em: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.label + '</span></strong><br><button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="speak(\'' + gameState.target.label + '\')">Ouvir</button></div><div class="tiles-grid">' + btns.join("") + '</div>';
+  board.innerHTML = '<div style="text-align:center;margin-bottom:15px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '<br>Toque em: <span style="color:var(--gold-dark);font-size:1.5rem;">' + gameState.target.label + '</span></strong></div><div class="tiles-grid">' + btns.join("") + '</div>';
 }
 
 async function clickConceptOption(label) {
@@ -574,24 +529,11 @@ async function clickConceptOption(label) {
   if (label === gameState.target.label) {
     gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; playSuccess();
     if (gameState.levelCorrects >= TARGET_CORRECT) {
-      speak("Muito bem! Você passou para o nível " + (gameState.level + 1));
-      setTimeout(() => startGame("identificacao_conceitos", gameState.level + 1), 2000);
-    } else {
-      speak("Muito bem! " + gameState.levelCorrects + " de " + TARGET_CORRECT);
-      setTimeout(() => {
-        var cBank = [
-          { display: "A", label: "Letra A" }, { display: "7", label: "Número 7" }, { display: "🔵", label: "Círculo azul" },
-          { display: "🔺", label: "Triângulo" }, { display: "🦋", label: "Borboleta" }, { display: "🟨", label: "Quadrado amarelo" },
-          { display: "B", label: "Letra B" }, { display: "3", label: "Número 3" }, { display: "🟩", label: "Quadrado verde" }, { display: "⭐", label: "Estrela" }
-        ];
-        var opts = shuf(cBank).slice(0, 6);
-        gameState.target = opts[Math.floor(Math.random() * opts.length)]; gameState.options = opts;
-        speak("Toque em: " + gameState.target.label); renderConceptsGame();
-      }, 1500);
+      var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
+      finishGame("Identificação de Conceitos", gameState.acertos, gameState.tentativas, dur);
     }
   } else {
     playError(); document.getElementById("game-board").classList.add("shake"); setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
-    speak("Tente de novo");
   }
 }
 
