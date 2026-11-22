@@ -226,11 +226,47 @@ function addAnamneseField(label = "", type = "text") {
   container.appendChild(div);
 }
 
-function resetAnamneseForm() {
-  document.getElementById("anamnese-id").value = "";
-  document.getElementById("anamnese-titulo").value = "";
+
+
+
+
+
+
+
+
+async function deleteAnamneseTemplate(id) {
+  if (!confirm("Excluir este modelo? Os prontuários preenchidos com ele também serão apagados.")) return;
+  const { error } = await sb.from("anamnese_modelos").delete().eq("id", id);
+  if (error) return showAnamneseAlert("Erro ao excluir.");
+  loadAnamneseTemplates();
+}
+
+
+function openAnamneseForm(modelo = null) {
+  document.getElementById("anamnese-form-container").style.display = "block";
+  document.getElementById("anamnese-list-container").style.display = "none";
+  document.getElementById("btn-novo-modelo").style.display = "none";
+  document.getElementById("admin-anamnese-alert").className = "alert"; // limpa alerta
+  
   document.getElementById("anamnese-campos-container").innerHTML = "";
-  anamneseCamposList = [];
+  
+  if (modelo) {
+    document.getElementById("form-anamnese-title").textContent = "Editar Modelo";
+    document.getElementById("anamnese-id").value = modelo.id;
+    document.getElementById("anamnese-titulo").value = modelo.titulo;
+    modelo.campos.forEach(c => addAnamneseField(c.label, c.type));
+  } else {
+    document.getElementById("form-anamnese-title").textContent = "Novo Modelo";
+    document.getElementById("anamnese-id").value = "";
+    document.getElementById("anamnese-titulo").value = "";
+    addAnamneseField(); // Já abre com 1 campo em branco
+  }
+}
+
+function closeAnamneseForm() {
+  document.getElementById("anamnese-form-container").style.display = "none";
+  document.getElementById("anamnese-list-container").style.display = "block";
+  document.getElementById("btn-novo-modelo").style.display = "block";
 }
 
 async function saveAnamneseTemplate() {
@@ -261,8 +297,8 @@ async function saveAnamneseTemplate() {
 
   if (res.error) return showAnamneseAlert("Erro ao salvar: " + res.error.message);
 
+  closeAnamneseForm();
   showAnamneseAlert("Modelo salvo com sucesso!", "success");
-  resetAnamneseForm();
   loadAnamneseTemplates();
 }
 
@@ -271,10 +307,10 @@ async function loadAnamneseTemplates() {
   if (!tbody) return;
 
   const { data, error } = await sb.from("anamnese_modelos").select("*").order("created_at", { ascending: false });
-  if (error) return showAnamneseAlert("Erro ao carregar modelos.");
+  if (error) return console.error("Erro ao carregar modelos:", error);
 
   if (!data || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="3">Nenhum modelo criado.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3">Nenhum modelo criado ainda.</td></tr>';
     return;
   }
 
@@ -283,23 +319,9 @@ async function loadAnamneseTemplates() {
       <td><strong>${escapeHTML(m.titulo)}</strong></td>
       <td>${m.campos.length} campos</td>
       <td class="actions" style="display:flex; gap:5px;">
-        <button class="btn btn-outline btn-sm" onclick='editAnamneseTemplate(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Editar</button>
+        <button class="btn btn-outline btn-sm" onclick='openAnamneseForm(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Abrir/Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteAnamneseTemplate('${m.id}')">Excluir</button>
       </td>
     </tr>
   `).join("");
-}
-
-function editAnamneseTemplate(modelo) {
-  resetAnamneseForm();
-  document.getElementById("anamnese-id").value = modelo.id;
-  document.getElementById("anamnese-titulo").value = modelo.titulo;
-  modelo.campos.forEach(c => addAnamneseField(c.label, c.type));
-}
-
-async function deleteAnamneseTemplate(id) {
-  if (!confirm("Excluir este modelo? Os prontuários preenchidos com ele também serão apagados.")) return;
-  const { error } = await sb.from("anamnese_modelos").delete().eq("id", id);
-  if (error) return showAnamneseAlert("Erro ao excluir.");
-  loadAnamneseTemplates();
 }

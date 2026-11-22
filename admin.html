@@ -39,12 +39,21 @@
       </div>
     </div>
   
+    
     <div class="card" style="margin-top: 20px;">
-      <h2>Modelos de Anamnese</h2>
-      <p class="subtitle">Crie formulários personalizados para os terapeutas preencherem com os pacientes.</p>
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:15px;">
+        <div>
+          <h2 style="margin:0;">Modelos de Anamnese</h2>
+          <p class="subtitle" style="margin:5px 0 0 0;">Crie formulários personalizados para os terapeutas.</p>
+        </div>
+        <button type="button" class="btn btn-gold" id="btn-novo-modelo" onclick="openAnamneseForm()" style="max-width:200px;">+ Criar Novo Modelo</button>
+      </div>
+      
       <div id="admin-anamnese-alert" class="alert"></div>
 
-      <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+      <!-- FORMULÁRIO (Escondido por padrão) -->
+      <div id="anamnese-form-container" style="display: none; background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd;">
+        <h3 id="form-anamnese-title" style="margin-top:0;">Novo Modelo</h3>
         <input type="hidden" id="anamnese-id">
         <div class="field">
           <label>Título do Modelo (Ex: Anamnese Infantil)</label>
@@ -53,23 +62,26 @@
         <div id="anamnese-campos-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;"></div>
         
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <button type="button" class="btn btn-outline btn-sm" onclick="addAnamneseField()">+ Adicionar Pergunta/Campo</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="addAnamneseField()">+ Adicionar Campo</button>
           <button type="button" class="btn btn-gold btn-sm" onclick="saveAnamneseTemplate()">Salvar Modelo</button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="resetAnamneseForm()">Limpar</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="closeAnamneseForm()">Cancelar</button>
         </div>
       </div>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Título do Modelo</th>
-              <th>Nº de Campos</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="anamneses-tbody"></tbody>
-        </table>
+      <!-- LISTA DE MODELOS -->
+      <div id="anamnese-list-container">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Título do Modelo</th>
+                <th>Nº de Campos</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="anamneses-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
     
