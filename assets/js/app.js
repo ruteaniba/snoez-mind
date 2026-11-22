@@ -113,13 +113,14 @@ function switchWorkspaceTab(tab) {
   document.querySelectorAll(".tab-btn").forEach(function(btn) {
     btn.classList.toggle("active", btn.getAttribute("data-tab") === tab);
   });
-  // Removemos o "criancas" da lista de abas
   ["jogos", "emocional"].forEach(function(t) {
     var sec = document.getElementById("tab-" + t);
     if (sec) sec.classList.toggle("hidden", t !== tab);
   });
-  if (tab === "emocional") { loadAnamneseModels();
-  loadAnamneseResponses(); }
+  if (tab === "emocional") { 
+    loadAnamneseModels();
+    loadAnamneseResponses(); 
+  }
 }
 
 function showAppAlert(msg, type) {
@@ -141,7 +142,6 @@ function openWorkspace(profile) {
   if (emailEl && profile) emailEl.textContent = profile.email || "";
   if (profile && profile.role === "admin") document.getElementById("admin-link")?.classList.remove("hidden");
   
-  // Removemos o loadChildren() e loadReports() daqui, pois a tela sumiu.
   loadAnamneseModels();
   loadAnamneseResponses(); 
 }
@@ -262,12 +262,6 @@ async function loadReports() {
     tbody.innerHTML = htmlRows.join("");
   }
 }
-
-
-
-
-
-
 
 function renderPairGame() {
   var board = document.getElementById("game-board");
@@ -569,3 +563,180 @@ document.addEventListener("DOMContentLoaded", async function() {
     } catch (err) { console.error("Erro ao verificar sessão:", err); }
   }
 });
+
+// --- FUNÇÕES DO PAINEL DO CLIENTE (ANAMNESE) ---
+
+let anamneseModelsCache = [];
+let anamneseResponsesCache = [];
+
+async function loadAnamneseModels() {
+  if (typeof sb === "undefined" || !sb) return;
+  const sel = document.getElementById("select-anamnese-modelo");
+  if (!sel) return;
+  
+  const { data, error } = await sb.from("anamnese_modelos").select("*").order("titulo");
+  if (error) {
+    console.error("Erro ao carregar modelos:", error);
+    sel.innerHTML = '<option value="">Erro ao carregar modelos.</option>';
+    return;
+  }
+  
+  anamneseModelsCache = data || [];
+  
+  if (anamneseModelsCache.length === 0) {
+    sel.innerHTML = '<option value="">Nenhum modelo disponível.</option>';
+    return;
+  }
+  
+  sel.innerHTML = '<option value="">Selecione um modelo...</option>' +
+    anamneseModelsCache.map(m => `<option value="${m.id}">${escapeHtml(m.titulo)}</option>`).join("");
+}
+
+function renderAnamneseForm() {
+  const sel = document.getElementById("select-anamnese-modelo");
+  const form = document.getElementById("dynamic-anamnese-form");
+  const container = document.getElementById("dynamic-fields-container");
+  
+  if (!sel || !form || !container) return;
+  
+  const modelId = sel.value;
+  if (!modelId) {
+    form.classList.add("hidden");
+    return;
+  }
+  
+  const model = anamneseModelsCache.find(m => m.id === modelId);
+  if (!model) return;
+  
+  document.getElementById("current-anamnese-id").value = modelId;
+  
+  container.innerHTML = model.campos.map(c => {
+    let inputHtml = "";
+    if (c.type === "textarea") {
+      inputHtml = `<textarea id="f-${c.id}" required rows="3"></textarea>`;
+    } else if (c.type === "date") {
+      inputHtml = `<input type="date" id="f-${c.id}" required>`;
+    } else {
+      inputHtml = `<input type="text" id="f-${c.id}" required>`;
+    }
+    
+    return `
+      <div class="field" style="margin-bottom:15px;">
+        <label style="font-weight:bold;">${escapeHtml(c.label)}</label>
+        ${inputHtml}
+      </div>
+    `;
+  }).join("");
+  
+  form.classList.remove("hidden");
+}
+
+async function saveAnamneseResponse() {
+  if (typeof sb === "undefined" || !sb) return;
+  
+  const pacienteNome = document.getElementById("paciente-nome")?.value || "";
+  const modelId = document.getElementById("current-anamnese-id")?.value;
+  
+  if (!pacienteNome || !modelId) return showAppAlert("Preencha o nome do paciente.", "error");
+  
+  const model = anamneseModelsCache.find(m => m.id === modelId);
+  if (!model) return;
+  
+  const respostas = {};
+  let preenchido = true;
+  
+  model.campos.forEach(c => {
+    const val = document.getElementById(`f-${c.id}`)?.value || "";
+    if (!val.trim()) preenchido = false;
+    respostas[c.label] = val;
+  });
+  
+  if (!preenchido) return showAppAlert("Por favor, preencha todos os campos.", "error");
+  
+  const uRes = await sb.auth.getUser();
+  const user = uRes?.data?.user;
+  if (!user) return;
+  
+  const { error } = await sb.from("anamnese_respostas").insert({
+    user_id: user.id,
+    anamnese_modelo_id: modelId,
+    paciente_nome: pacienteNome,
+    respostas: respostas
+  });
+  
+  if (error) {
+    console.error(error);
+    return showAppAlert("Erro ao salvar: " + error.message, "error");
+  }
+  
+  showAppAlert("Prontuário salvo com sucesso!", "success");
+  document.getElementById("dynamic-anamnese-form").reset();
+  document.getElementById("dynamic-anamnese-form").classList.add("hidden");
+  
+  loadAnamneseResponses();
+}
+
+async function loadAnamneseResponses() {
+  if (typeof sb === "undefined" || !sb) return;
+  const tbody = document.getElementById("clients-tbody");
+  if (!tbody) return;
+  
+  const uRes = await sb.auth.getUser();
+  const user = uRes?.data?.user;
+  if (!user) return;
+
+  const { data, error } = await sb.from("anamnese_respostas")
+    .select("*, anamnese_modelos(titulo)")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Erro ao carregar respostas:", error);
+    tbody.innerHTML = '<tr><td colspan="3">Erro ao carregar prontuários.</td></tr>';
+    return;
+  }
+
+  anamneseResponsesCache = data || [];
+
+  if (anamneseResponsesCache.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3">Nenhum prontuário salvo.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = anamneseResponsesCache.map(r => {
+    const dt = new Date(r.created_at).toLocaleDateString("pt-BR");
+    return `<tr>
+      <td><strong>${escapeHtml(r.paciente_nome)}</strong><br><small>${escapeHtml(r.anamnese_modelos?.titulo || "N/A")}</small></td>
+      <td>${dt}</td>
+      <td><button type="button" class="btn btn-outline btn-sm" onclick="viewAnamneseResponse('${r.id}')">Ver Detalhes</button></td>
+    </tr>`;
+  }).join("");
+}
+
+function viewAnamneseResponse(id) {
+  const resp = anamneseResponsesCache.find(r => r.id === id);
+  if (!resp) return;
+
+  const existing = document.getElementById('view-anamnese-overlay');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'view-anamnese-overlay';
+  modal.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px;";
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  
+  const respostasHtml = Object.entries(resp.respostas || {}).map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</li>`).join("");
+
+  modal.innerHTML = `
+    <div style="background:#fff;padding:24px;border-radius:10px;max-width:600px;width:100%;max-height:85vh;overflow-y:auto;position:relative;">
+      <button onclick="document.getElementById('view-anamnese-overlay').remove()" style="position:absolute;top:15px;right:15px;background:#EF4444;color:#fff;border:none;padding:8px 12px;cursor:pointer;border-radius:5px;font-weight:bold;">X</button>
+      <h2 style="margin-top:0; color:#333;">Prontuário: ${escapeHtml(resp.paciente_nome)}</h2>
+      <p style="color:#666; font-size:14px;"><strong>Modelo:</strong> ${escapeHtml(resp.anamnese_modelos?.titulo || "N/A")}</p>
+      <hr style="margin:15px 0; border:0; border-top:1px solid #ddd;">
+      <ul style="margin:0; padding-left:20px; line-height:1.6; color:#333;">
+        ${respostasHtml}
+      </ul>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
