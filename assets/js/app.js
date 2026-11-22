@@ -309,17 +309,32 @@ async function deleteClient(id) {
 
 function startGame(type, level = 1) {
   gameState = { type: type, level: level, startedAt: Date.now(), acertos: 0, tentativas: 0, selected: null, matchedIds: [], levelCorrects: 0, totalAcertos: level > 1 ? (gameState?.totalAcertos || 0) : 0, totalTentativas: level > 1 ? (gameState?.totalTentativas || 0) : 0 };
-  if (type === "pareamento_cores" || type === "pareamento_sobras") {
+  if (type === "pareamento_cores") {
     var base = [
-      { key: "Vermelho", color: "#EF4444", label: "Vermelho" }, { key: "Azul", color: "#3B82F6", label: "Azul" },
-      { key: "Amarelo", color: "#EAB308", label: "Amarelo" }, { key: "Verde", color: "#22C55E", label: "Verde" },
-      { key: "Roxo", color: "#A855F7", label: "Roxo" }, { key: "Laranja", color: "#F97316", label: "Laranja" }
+      { key: "Vermelho", color: "#EF4444", icon: "🍎" }, { key: "Azul", color: "#3B82F6", icon: "🚙" },
+      { key: "Amarelo", color: "#EAB308", icon: "🌟" }, { key: "Verde", color: "#22C55E", icon: "🍀" },
+      { key: "Roxo", color: "#A855F7", icon: "🍇" }, { key: "Laranja", color: "#F97316", icon: "🍊" }
     ];
     var items = [];
-    base.forEach(function(b, idx) { items.push({ id: "a-" + idx, key: b.key, label: b.label, color: b.color }); items.push({ id: "b-" + idx, key: b.key, label: b.label, color: b.color }); });
-    if (type === "pareamento_sobras") { items.push({ id: "extra-1", key: "Marrom", label: "Marrom", color: "#78350F" }); items.push({ id: "extra-2", key: "Rosa", label: "Rosa", color: "#EC4899" }); }
+    base.forEach(function(b, idx) {
+      items.push({ id: "a-" + idx, key: b.key, icon: b.icon, color: b.color });
+      items.push({ id: "b-" + idx, key: b.key, icon: b.icon, color: b.color });
+    });
     gameState.items = shuf(items); gameState.totalPairs = base.length;
     renderPairGame();
+  } else if (type === "pareamento_sobras") {
+    var allColors = [
+      { key: "Vermelho", color: "#EF4444", icon: "🍎" }, { key: "Azul", color: "#3B82F6", icon: "🚙" },
+      { key: "Amarelo", color: "#EAB308", icon: "🌟" }, { key: "Verde", color: "#22C55E", icon: "🍀" },
+      { key: "Roxo", color: "#A855F7", icon: "🍇" }, { key: "Laranja", color: "#F97316", icon: "🍊" }
+    ];
+    var shuffled = shuf(allColors);
+    var targets = shuffled.slice(0, 4); // 4 alvos fixos
+    var pieces = shuffled.map(function(c) { return { id: "p-" + c.key, key: c.key, icon: c.icon, color: c.color, placed: false }; }); // 6 peças (2 sobras)
+    gameState.targets = targets.map(function(t, idx) { return { id: "t-" + idx, key: t.key, color: t.color, filled: false }; });
+    gameState.pieces = shuf(pieces);
+    gameState.selectedPiece = null;
+    renderSobrasGame();
   } else if (type === "quebra_cabeca") {
     startRealPuzzle();
   } else if (type === "identificacao_imagem") {
@@ -359,29 +374,73 @@ function renderPairGame() {
   gameState.items.forEach(function(it) {
     var isMatched = gameState.matchedIds.indexOf(it.id) !== -1;
     var isSel = gameState.selected === it.id;
-    btns.push('<button type="button" class="tile-btn ' + (isSel ? "selected" : "") + ' ' + (isMatched ? "matched" : "") + '" onclick="clickPairTile(\'' + it.id + '\')"><span style="width:40px;height:40px;border-radius:50%;background:' + it.color + ';display:inline-block;border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,0.2);"></span></button>');
+    btns.push('<button type="button" class="tile-btn ' + (isSel ? "selected" : "") + ' ' + (isMatched ? "matched" : "") + '" style="border: 3px solid ' + it.color + ';" onclick="clickPairTile(\'' + it.id + '\')"><span style="font-size:2.5rem;">' + it.icon + '</span></button>');
   });
-  board.innerHTML = '<div class="tiles-grid">' + btns.join("") + '</div>';
+  board.innerHTML = '<div style="text-align:center; margin-bottom:15px; color:#555; font-weight:bold;">Encontre os pares de objetos iguais!</div><div class="tiles-grid">' + btns.join("") + '</div>';
 }
 
-async function clickPairTile(id) {
-  if (gameState.matchedIds.indexOf(id) !== -1 || gameState.selected === id) return;
-  var clicked = gameState.items.find(function(x) { return x.id === id; });
-  if (!gameState.selected) { gameState.selected = id; renderPairGame(); return; }
-  var prev = gameState.items.find(function(x) { return x.id === gameState.selected; });
-  gameState.tentativas += 1; gameState.totalTentativas++; gameState.selected = null;
-  if (prev.key === clicked.key) {
-    gameState.acertos += 1; gameState.totalAcertos++; gameState.levelCorrects++; gameState.matchedIds.push(prev.id, clicked.id); playSuccess();
-    if (gameState.levelCorrects >= TARGET_CORRECT || gameState.matchedIds.length / 2 === gameState.totalPairs) {
+function renderSobrasGame() {
+  var board = document.getElementById("game-board");
+  var targetHtml = gameState.targets.map(function(t) {
+     return '<div style="width:70px; height:70px; border:3px dashed ' + t.color + '; border-radius:10px; display:flex; justify-content:center; align-items:center; background:' + (t.filled ? t.color : '#fff') + '; cursor:pointer;" onclick="clickSobrasTarget(\'' + t.id + '\')">' +
+            (t.filled ? '<span style="font-size:2rem; color:#fff;">✔️</span>' : '') + '</div>';
+  }).join('');
+
+  var pieceHtml = gameState.pieces.map(function(p) {
+     if (p.placed) return '';
+     var isSel = gameState.selectedPiece === p.id;
+     return '<button type="button" class="tile-btn ' + (isSel ? "selected" : "") + '" style="border: 3px solid ' + p.color + ';" onclick="clickSobrasPiece(\'' + p.id + '\')"><span style="font-size:2.5rem;">' + p.icon + '</span></button>';
+  }).join('');
+
+  board.innerHTML = `
+    <div style="text-align:center; margin-bottom:15px; color:#555; font-weight:bold; line-height:1.4;">
+      Selecione um objeto abaixo e clique na cor correspondente.<br>
+      <span style="font-size:0.9rem; font-weight:normal; color:#888;">Deixe as peças que não têm par de lado (sobras).</span>
+    </div>
+    <div style="display:flex; justify-content:center; gap:15px; margin-bottom:30px; flex-wrap:wrap; padding:15px; background:#f9f9f9; border-radius:10px;">
+      ${targetHtml}
+    </div>
+    <div class="tiles-grid">
+      ${pieceHtml}
+    </div>
+  `;
+}
+
+function clickSobrasPiece(id) {
+  var piece = gameState.pieces.find(function(p) { return p.id === id; });
+  if (!piece || piece.placed) return;
+  gameState.selectedPiece = id;
+  renderSobrasGame();
+}
+
+async function clickSobrasTarget(targetId) {
+  if (!gameState.selectedPiece) return;
+  var target = gameState.targets.find(function(t) { return t.id === targetId; });
+  var piece = gameState.pieces.find(function(p) { return p.id === gameState.selectedPiece; });
+  if (!target || !piece || target.filled) return;
+
+  gameState.tentativas++;
+  if (piece.key === target.key) {
+    gameState.acertos++;
+    gameState.levelCorrects++;
+    piece.placed = true;
+    target.filled = true;
+    gameState.selectedPiece = null;
+    playSuccess();
+
+    if (gameState.targets.every(function(t) { return t.filled; })) {
        var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
-       finishGame("Pareamento", gameState.acertos, gameState.tentativas, dur);
+       finishGame("Pareamento com Sobras", gameState.acertos, gameState.tentativas, dur);
+    } else {
+       renderSobrasGame();
     }
-  } else { 
-      playError(); 
-      document.getElementById("game-board").classList.add("shake"); 
-      setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300); 
+  } else {
+     playError();
+     document.getElementById("game-board").classList.add("shake");
+     setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
+     gameState.selectedPiece = null;
+     renderSobrasGame();
   }
-  renderPairGame();
 }
 
 let puzzlePieces = []; let puzzleSolved = false;
