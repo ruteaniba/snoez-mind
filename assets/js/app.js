@@ -529,7 +529,7 @@ function renderConnectGame() {
     var done = gameState.matchedIds.indexOf(item.id) !== -1;
     rightBtns.push('<button type="button" class="tile-btn ' + (done ? "matched" : "") + '" onclick="selectRight(' + item.id + ')"><span style="font-size:2.5rem;">' + item.icon + '</span></button>');
   });
-  board.innerHTML = '<div style="text-align:center;margin-bottom:10px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '</strong></div><p class="subtitle">Toque na imagem da esquerda e depois na correspondente da direita.</p><div class="grid-2"><div class="tiles-grid">' + leftBtns.join("") + '</div><div class="tiles-grid">' + rightBtns.join("") + '</div></div>';
+  board.innerHTML = '<div style="text-align:center;margin-bottom:10px;"><strong>Nível ' + gameState.level + ' - Acertos: ' + gameState.levelCorrects + '/' + TARGET_CORRECT + '</strong></div><p class="subtitle"><div style="background:#fffbeb; border:1px solid #fde68a; padding:12px; margin-bottom:15px; border-radius:8px; text-align:center; color:#92400e; font-size:0.95rem; line-height:1.4;"><strong>Como jogar:</strong> Encontre a imagem da direita que combina com a da esquerda.<br><em>Exemplo: A Chave 🔑 combina com o Cadeado 🔒.</em></div></p><div class="grid-2"><div class="tiles-grid">' + leftBtns.join("") + '</div><div class="tiles-grid">' + rightBtns.join("") + '</div></div>';
 }
 
 function selectLeft(id) { if (gameState.matchedIds.indexOf(id) !== -1) return; gameState.selectedLeft = id; renderConnectGame(); }
