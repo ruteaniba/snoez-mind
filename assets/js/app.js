@@ -5,6 +5,67 @@ let gameState = null;
 const CREDS_KEY = "snoezmind_saved_creds_v1";
 const TARGET_CORRECT = 10;
 
+// --- FUNÇÃO QUE ESTAVA FALTANDO PARA INICIAR OS JOGOS ---
+function startGame(gameType) {
+  document.getElementById("game-board").classList.remove("shake");
+  const startObj = { startedAt: Date.now(), acertos: 0, tentativas: 0, totalAcertos: 0, totalTentativas: 0, levelCorrects: 0, level: 1, matchedIds: [], selected: null, selectedLeft: null, selectedPiece: null };
+
+  if (gameType === "pareamento_cores") {
+    var colors = ["#EF4444", "#3B82F6", "#22C55E", "#EAB308", "#A855F7", "#EC4899"];
+    var icons = ["🍎", "🚗", "🐶", "⭐", "🌸", "⚽"];
+    var items = [];
+    for(var i=0; i<6; i++) {
+      items.push({ id: "a"+i, color: colors[i], icon: icons[i] });
+      items.push({ id: "b"+i, color: colors[i], icon: icons[i] });
+    }
+    gameState = { ...startObj, type: gameType, items: shuf(items) };
+    renderPairGame();
+  } 
+  else if (gameType === "pareamento_sobras") {
+    var targets = [
+      { id: "t1", color: "#EF4444", key: "maçã", filled: false },
+      { id: "t2", color: "#3B82F6", key: "carro", filled: false },
+      { id: "t3", color: "#22C55E", key: "cachorro", filled: false }
+    ];
+    var pieces = [
+      { id: "p1", color: "#EF4444", icon: "🍎", key: "maçã", placed: false },
+      { id: "p2", color: "#3B82F6", icon: "🚗", key: "carro", placed: false },
+      { id: "p3", color: "#22C55E", icon: "🐶", key: "cachorro", placed: false },
+      { id: "p4", color: "#EAB308", icon: "⭐", key: "estrela", placed: false },
+      { id: "p5", color: "#A855F7", icon: "🌸", key: "flor", placed: false }
+    ];
+    gameState = { ...startObj, type: gameType, targets: targets, pieces: shuf(pieces) };
+    renderSobrasGame();
+  }
+  else if (gameType === "quebra_cabeca") {
+    startRealPuzzle();
+  }
+  else if (gameType === "identificacao_imagem") {
+    var bank = [
+      { icon: "🐶", word: "Cachorro" }, { icon: "🐱", word: "Gato" }, { icon: "🍎", word: "Maçã" }, { icon: "🚗", word: "Carro" },
+      { icon: "⭐", word: "Estrela" }, { icon: "🐘", word: "Elefante" }, { icon: "🍌", word: "Banana" }, { icon: "✈️", word: "Avião" }
+    ];
+    var options = shuf(bank).slice(0, 4);
+    gameState = { ...startObj, type: gameType, options: options, target: options[Math.floor(Math.random() * options.length)] };
+    renderIdentifyGame();
+  }
+  else if (gameType === "ligar_imagens") {
+    var leftItems = [{ id: 1, icon: "🔑" }, { id: 2, icon: "🐟" }, { id: 3, icon: "☕" }, { id: 4, icon: "🎈" }];
+    var rightItems = [{ id: 1, icon: "🔒" }, { id: 2, icon: "🌊" }, { id: 3, icon: "🥛" }, { id: 4, icon: "🎉" }];
+    gameState = { ...startObj, type: gameType, leftItems: leftItems, rightItems: shuf(rightItems), pairs: leftItems };
+    renderConnectGame();
+  }
+  else if (gameType === "identificacao_conceitos") {
+    var cBank = [
+      { display: "A", label: "Letra A" }, { display: "7", label: "Número 7" }, { display: "🔵", label: "Círculo azul" },
+      { display: "🔺", label: "Triângulo" }, { display: "🦋", label: "Borboleta" }, { display: "🟨", label: "Quadrado amarelo" }
+    ];
+    var opts = shuf(cBank).slice(0, 6);
+    gameState = { ...startObj, type: gameType, options: opts, target: opts[Math.floor(Math.random() * opts.length)] };
+    renderConceptsGame();
+  }
+}
+
 function playTone(freq, type, duration, volume = 0.1) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -37,7 +98,6 @@ async function finishGame(gameName, acertos, tentativas, duration) {
   
   const overlay = document.createElement("div");
   overlay.className = "game-modal-overlay";
-  
   overlay.style.cssText = "position:fixed; top:15px; left:0; width:100%; display:flex; justify-content:center; z-index:9999; pointer-events:none; opacity:0; transition:opacity 0.3s;";
   
   overlay.innerHTML = `
@@ -47,7 +107,7 @@ async function finishGame(gameName, acertos, tentativas, duration) {
       <div class="score" style="font-size:1.8rem; font-weight:bold; color:#EAB308; margin:5px 0;">${score}%</div>
       <p style="margin:5px 0; font-size:0.9rem; color:#666;">Acertos: ${acertos} | Erros: ${Math.max(0, tentativas - acertos)} | Tempo: ${duration}s</p>
       <div style="display:flex; gap:10px; justify-content:center; margin-top:10px;">
-        <button class="btn btn-gold btn-sm" onclick="this.closest('.game-modal-overlay').remove(); if(typeof startGame === 'function') startGame('${gameName.toLowerCase().includes('identifica') ? 'identificacao_imagem' : (gameName.toLowerCase().includes('conceito') ? 'identificacao_conceitos' : (gameName.toLowerCase().includes('quebra') ? 'quebra_cabeca' : 'pareamento_cores'))}')">Jogar Novamente</button>
+        <button class="btn btn-gold btn-sm" onclick="this.closest('.game-modal-overlay').remove(); startGame('${gameName.toLowerCase().includes('identifica') ? 'identificacao_imagem' : (gameName.toLowerCase().includes('conceito') ? 'identificacao_conceitos' : (gameName.toLowerCase().includes('quebra') ? 'quebra_cabeca' : 'pareamento_cores'))}')">Jogar Novamente</button>
         <button class="btn btn-outline btn-sm" onclick="this.closest('.game-modal-overlay').remove();">Fechar</button>
       </div>
     </div>
@@ -117,10 +177,8 @@ function switchWorkspaceTab(tab) {
     if (sec) sec.classList.toggle("hidden", t !== tab);
   });
   if (tab === "emocional") { 
-    try {
-      if (typeof loadAnamneseModels === "function") loadAnamneseModels();
-      if (typeof loadAnamneseResponses === "function") loadAnamneseResponses(); 
-    } catch (e) { console.error("Erro ao carregar anamnese:", e); }
+    loadAnamneseModels();
+    loadAnamneseResponses(); 
   }
 }
 
@@ -143,10 +201,8 @@ function openWorkspace(profile) {
   if (emailEl && profile) emailEl.textContent = profile.email || "";
   if (profile && profile.role === "admin") document.getElementById("admin-link")?.classList.remove("hidden");
   
-  try {
-    if (typeof loadAnamneseModels === "function") loadAnamneseModels();
-    if (typeof loadAnamneseResponses === "function") loadAnamneseResponses(); 
-  } catch (e) { console.error("Erro ao carregar anamnese:", e); }
+  loadAnamneseModels();
+  loadAnamneseResponses(); 
 }
 
 async function logoutUser() {
@@ -246,7 +302,7 @@ async function recordGameSession(jogo, acertos, tentativas, duracaoSeg) {
   var uRes = await sb.auth.getUser(); var user = uRes && uRes.data ? uRes.data.user : null;
   if (!user) return;
   await sb.from("sessoes_jogos").insert({ user_id: user.id, crianca_id: selectedChildId || null, jogo: jogo, acertos: acertos, tentativas: tentativas, duracao_seg: duracaoSeg });
-  if (typeof loadReports === "function") loadReports();
+  loadReports();
 }
 
 async function loadReports() {
@@ -275,6 +331,30 @@ function renderPairGame() {
     btns.push('<button type="button" class="tile-btn ' + (isSel ? "selected" : "") + ' ' + (isMatched ? "matched" : "") + '" style="border: 3px solid ' + it.color + ';" onclick="clickPairTile(\'' + it.id + '\')"><span style="font-size:2.5rem;">' + it.icon + '</span></button>');
   });
   board.innerHTML = '<div style="text-align:center; margin-bottom:15px; color:#555; font-weight:bold;">Encontre os pares de objetos iguais!</div><div class="tiles-grid">' + btns.join("") + '</div>';
+}
+
+function clickPairTile(id) {
+  if (gameState.matchedIds.indexOf(id) !== -1) return;
+  if (!gameState.selected) {
+    gameState.selected = id; renderPairGame();
+  } else if (gameState.selected === id) {
+    gameState.selected = null; renderPairGame();
+  } else {
+    var item1 = gameState.items.find(function(i) { return i.id === gameState.selected; });
+    var item2 = gameState.items.find(function(i) { return i.id === id; });
+    gameState.tentativas++;
+    if (item1.color === item2.color) {
+      gameState.acertos++; gameState.matchedIds.push(gameState.selected); gameState.matchedIds.push(id); playSuccess();
+      if (gameState.matchedIds.length === gameState.items.length) {
+        var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
+        finishGame("Pareamento Colorido", gameState.acertos, gameState.tentativas, dur);
+      }
+    } else {
+      playError(); document.getElementById("game-board").classList.add("shake");
+      setTimeout(() => document.getElementById("game-board").classList.remove("shake"), 300);
+    }
+    gameState.selected = null; renderPairGame();
+  }
 }
 
 function renderSobrasGame() {
@@ -347,22 +427,7 @@ const puzzleImages = [
   "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400&h=400&fit=crop",
   "https://images.unsplash.com/photo-1557050543-4d5f4e07ef46?w=400&h=400&fit=crop",
   "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1474511320723-9a56873867b5?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1591871937573-74dbba515c4c?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1534188753412-3e26d0d618d6?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1552410260-0fd9b577afa6?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1529778873920-4da4926a72c2?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1548247416-ec66f4900b2e?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1507666405895-422eee7d517f?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1596706589401-13f9fb8b7998?w=400&h=400&fit=crop",
-  "https://images.unsplash.com/photo-1555169062-013468b47731?w=400&h=400&fit=crop"
+  "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=400&fit=crop"
 ];
 
 function startRealPuzzle() {
@@ -444,9 +509,9 @@ function renderIdentifyGame(feedbackMsg = "", feedbackType = "") {
 }
 
 async function clickIdentifyOption(word) {
-  gameState.tentativas++; gameState.totalTentativas++;
+  gameState.tentativas++; gameState.totalTentativas = (gameState.totalTentativas || 0) + 1;
   if (word === gameState.target.word) {
-    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; playSuccess();
+    gameState.acertos++; gameState.totalAcertos = (gameState.totalAcertos || 0) + 1; gameState.levelCorrects++; playSuccess();
     
     if (gameState.levelCorrects >= TARGET_CORRECT) {
        var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
@@ -457,8 +522,7 @@ async function clickIdentifyOption(word) {
           var bank = [
             { icon: "🐶", word: "Cachorro" }, { icon: "🐱", word: "Gato" }, { icon: "🍎", word: "Maçã" }, { icon: "🚗", word: "Carro" },
             { icon: "⭐", word: "Estrela" }, { icon: "🐘", word: "Elefante" }, { icon: "🍌", word: "Banana" }, { icon: "✈️", word: "Avião" },
-            { icon: "🌻", word: "Girassol" }, { icon: "🐟", word: "Peixe" }, { icon: "🍇", word: "Uva" }, { icon: "🚲", word: "Bicicleta" },
-            { icon: "🦁", word: "Leão" }, { icon: "🍓", word: "Morango" }, { icon: "🚁", word: "Helicóptero" }, { icon: "🌈", word: "Arco-íris" }
+            { icon: "🌻", word: "Girassol" }, { icon: "🐟", word: "Peixe" }, { icon: "🍇", word: "Uva" }, { icon: "🚲", word: "Bicicleta" }
           ];
           var maxOptions = 4;
           var options = shuf(bank).slice(0, maxOptions);
@@ -493,9 +557,9 @@ function selectLeft(id) { if (gameState.matchedIds.indexOf(id) !== -1) return; g
 
 async function selectRight(id) {
   if (!gameState.selectedLeft || gameState.matchedIds.indexOf(id) !== -1) return;
-  gameState.tentativas++; gameState.totalTentativas++;
+  gameState.tentativas++; gameState.totalTentativas = (gameState.totalTentativas || 0) + 1;
   if (gameState.selectedLeft === id) {
-    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; gameState.matchedIds.push(id); playSuccess();
+    gameState.acertos++; gameState.totalAcertos = (gameState.totalAcertos || 0) + 1; gameState.levelCorrects++; gameState.matchedIds.push(id); playSuccess();
     if (gameState.levelCorrects >= TARGET_CORRECT || gameState.matchedIds.length === gameState.pairs.length) {
        var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
        finishGame("Ligar Imagens", gameState.acertos, gameState.tentativas, dur);
@@ -524,9 +588,9 @@ function renderConceptsGame(feedbackMsg = "", feedbackType = "") {
 }
 
 async function clickConceptOption(label) {
-  gameState.tentativas++; gameState.totalTentativas++;
+  gameState.tentativas++; gameState.totalTentativas = (gameState.totalTentativas || 0) + 1;
   if (label === gameState.target.label) {
-    gameState.acertos++; gameState.totalAcertos++; gameState.levelCorrects++; playSuccess();
+    gameState.acertos++; gameState.totalAcertos = (gameState.totalAcertos || 0) + 1; gameState.levelCorrects++; playSuccess();
     
     if (gameState.levelCorrects >= TARGET_CORRECT) {
       var dur = Math.max(1, Math.round((Date.now() - gameState.startedAt) / 1000));
@@ -552,7 +616,23 @@ async function clickConceptOption(label) {
   }
 }
 
+document.addEventListener("DOMContentLoaded", async function() {
+  applySavedCredsToForm();
+  if (typeof sb !== "undefined" && sb) {
+    try {
+      var sRes = await sb.auth.getSession();
+      var session = sRes && sRes.data ? sRes.data.session : null;
+      if (session && document.getElementById("app-section")) {
+        var pRes = await sb.from("profiles").select("*").eq("id", session.user.id).single();
+        var profile = pRes ? pRes.data : null;
+        if (profile && (profile.role === "admin" || !!profile.ativo)) openWorkspace(profile);
+      }
+    } catch (err) { console.error("Erro ao verificar sessão:", err); }
+  }
+});
+
 // --- FUNÇÕES DO PAINEL DO CLIENTE (ANAMNESE) ---
+
 let anamneseModelsCache = [];
 let anamneseResponsesCache = [];
 
@@ -663,6 +743,7 @@ async function saveAnamneseResponse() {
   loadAnamneseResponses();
 }
 
+// CORREÇÃO DO ERRO DE RESPOSTAS (Sem JOIN e usando o Cache)
 async function loadAnamneseResponses() {
   if (typeof sb === "undefined" || !sb) return;
   const tbody = document.getElementById("clients-tbody");
@@ -672,14 +753,15 @@ async function loadAnamneseResponses() {
   const user = uRes?.data?.user;
   if (!user) return;
 
+  // Busca apenas as respostas, sem fazer JOIN
   const { data, error } = await sb.from("anamnese_respostas")
-    .select("*, anamnese_modelos(titulo)")
+    .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
   if (error) {
     console.error("Erro ao carregar respostas:", error);
-    tbody.innerHTML = '<tr><td colspan="3">Erro ao carregar prontuários.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3">Erro ao carregar prontuários. Verifique o console.</td></tr>';
     return;
   }
 
@@ -692,8 +774,12 @@ async function loadAnamneseResponses() {
 
   tbody.innerHTML = anamneseResponsesCache.map(r => {
     const dt = new Date(r.created_at).toLocaleDateString("pt-BR");
+    // Procura o título no cache de modelos em vez de depender do banco
+    const model = anamneseModelsCache.find(m => m.id === r.anamnese_modelo_id);
+    const titulo = model ? model.titulo : "Modelo não encontrado";
+    
     return `<tr>
-      <td><strong>${escapeHtml(r.paciente_nome)}</strong><br><small>${escapeHtml(r.anamnese_modelos?.titulo || "N/A")}</small></td>
+      <td><strong>${escapeHtml(r.paciente_nome)}</strong><br><small>${escapeHtml(titulo)}</small></td>
       <td>${dt}</td>
       <td><button type="button" class="btn btn-outline btn-sm" onclick="viewAnamneseResponse('${r.id}')">Ver Detalhes</button></td>
     </tr>`;
@@ -713,12 +799,14 @@ function viewAnamneseResponse(id) {
   modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
   
   const respostasHtml = Object.entries(resp.respostas || {}).map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</li>`).join("");
+  const model = anamneseModelsCache.find(m => m.id === resp.anamnese_modelo_id);
+  const titulo = model ? model.titulo : "N/A";
 
   modal.innerHTML = `
     <div style="background:#fff;padding:24px;border-radius:10px;max-width:600px;width:100%;max-height:85vh;overflow-y:auto;position:relative;">
       <button onclick="document.getElementById('view-anamnese-overlay').remove()" style="position:absolute;top:15px;right:15px;background:#EF4444;color:#fff;border:none;padding:8px 12px;cursor:pointer;border-radius:5px;font-weight:bold;">X</button>
       <h2 style="margin-top:0; color:#333;">Prontuário: ${escapeHtml(resp.paciente_nome)}</h2>
-      <p style="color:#666; font-size:14px;"><strong>Modelo:</strong> ${escapeHtml(resp.anamnese_modelos?.titulo || "N/A")}</p>
+      <p style="color:#666; font-size:14px;"><strong>Modelo:</strong> ${escapeHtml(titulo)}</p>
       <hr style="margin:15px 0; border:0; border-top:1px solid #ddd;">
       <ul style="margin:0; padding-left:20px; line-height:1.6; color:#333;">
         ${respostasHtml}
@@ -727,18 +815,3 @@ function viewAnamneseResponse(id) {
   `;
   document.body.appendChild(modal);
 }
-
-document.addEventListener("DOMContentLoaded", async function() {
-  applySavedCredsToForm();
-  if (typeof sb !== "undefined" && sb) {
-    try {
-      var sRes = await sb.auth.getSession();
-      var session = sRes && sRes.data ? sRes.data.session : null;
-      if (session && document.getElementById("app-section")) {
-        var pRes = await sb.from("profiles").select("*").eq("id", session.user.id).single();
-        var profile = pRes ? pRes.data : null;
-        if (profile && (profile.role === "admin" || !!profile.ativo)) openWorkspace(profile);
-      }
-    } catch (err) { console.error("Erro ao verificar sessão:", err); }
-  }
-});
