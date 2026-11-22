@@ -38,7 +38,6 @@ async function finishGame(gameName, acertos, tentativas, duration) {
   const overlay = document.createElement("div");
   overlay.className = "game-modal-overlay";
   
-  // Fundo transparente, aviso fixo no topo e sem bloquear o resto da tela
   overlay.style.cssText = "position:fixed; top:15px; left:0; width:100%; display:flex; justify-content:center; z-index:9999; pointer-events:none; opacity:0; transition:opacity 0.3s;";
   
   overlay.innerHTML = `
@@ -48,7 +47,7 @@ async function finishGame(gameName, acertos, tentativas, duration) {
       <div class="score" style="font-size:1.8rem; font-weight:bold; color:#EAB308; margin:5px 0;">${score}%</div>
       <p style="margin:5px 0; font-size:0.9rem; color:#666;">Acertos: ${acertos} | Erros: ${Math.max(0, tentativas - acertos)} | Tempo: ${duration}s</p>
       <div style="display:flex; gap:10px; justify-content:center; margin-top:10px;">
-        <button class="btn btn-gold btn-sm" onclick="this.closest('.game-modal-overlay').remove(); startGame('${gameName.toLowerCase().includes('identifica') ? 'identificacao_imagem' : (gameName.toLowerCase().includes('conceito') ? 'identificacao_conceitos' : (gameName.toLowerCase().includes('quebra') ? 'quebra_cabeca' : 'pareamento_cores'))}')">Jogar Novamente</button>
+        <button class="btn btn-gold btn-sm" onclick="this.closest('.game-modal-overlay').remove(); if(typeof startGame === 'function') startGame('${gameName.toLowerCase().includes('identifica') ? 'identificacao_imagem' : (gameName.toLowerCase().includes('conceito') ? 'identificacao_conceitos' : (gameName.toLowerCase().includes('quebra') ? 'quebra_cabeca' : 'pareamento_cores'))}')">Jogar Novamente</button>
         <button class="btn btn-outline btn-sm" onclick="this.closest('.game-modal-overlay').remove();">Fechar</button>
       </div>
     </div>
@@ -118,8 +117,10 @@ function switchWorkspaceTab(tab) {
     if (sec) sec.classList.toggle("hidden", t !== tab);
   });
   if (tab === "emocional") { 
-    loadAnamneseModels();
-    loadAnamneseResponses(); 
+    try {
+      if (typeof loadAnamneseModels === "function") loadAnamneseModels();
+      if (typeof loadAnamneseResponses === "function") loadAnamneseResponses(); 
+    } catch (e) { console.error("Erro ao carregar anamnese:", e); }
   }
 }
 
@@ -142,8 +143,10 @@ function openWorkspace(profile) {
   if (emailEl && profile) emailEl.textContent = profile.email || "";
   if (profile && profile.role === "admin") document.getElementById("admin-link")?.classList.remove("hidden");
   
-  loadAnamneseModels();
-  loadAnamneseResponses(); 
+  try {
+    if (typeof loadAnamneseModels === "function") loadAnamneseModels();
+    if (typeof loadAnamneseResponses === "function") loadAnamneseResponses(); 
+  } catch (e) { console.error("Erro ao carregar anamnese:", e); }
 }
 
 async function logoutUser() {
@@ -243,7 +246,7 @@ async function recordGameSession(jogo, acertos, tentativas, duracaoSeg) {
   var uRes = await sb.auth.getUser(); var user = uRes && uRes.data ? uRes.data.user : null;
   if (!user) return;
   await sb.from("sessoes_jogos").insert({ user_id: user.id, crianca_id: selectedChildId || null, jogo: jogo, acertos: acertos, tentativas: tentativas, duracao_seg: duracaoSeg });
-  loadReports();
+  if (typeof loadReports === "function") loadReports();
 }
 
 async function loadReports() {
@@ -549,23 +552,7 @@ async function clickConceptOption(label) {
   }
 }
 
-document.addEventListener("DOMContentLoaded", async function() {
-  applySavedCredsToForm();
-  if (typeof sb !== "undefined" && sb) {
-    try {
-      var sRes = await sb.auth.getSession();
-      var session = sRes && sRes.data ? sRes.data.session : null;
-      if (session && document.getElementById("app-section")) {
-        var pRes = await sb.from("profiles").select("*").eq("id", session.user.id).single();
-        var profile = pRes ? pRes.data : null;
-        if (profile && (profile.role === "admin" || !!profile.ativo)) openWorkspace(profile);
-      }
-    } catch (err) { console.error("Erro ao verificar sessão:", err); }
-  }
-});
-
 // --- FUNÇÕES DO PAINEL DO CLIENTE (ANAMNESE) ---
-
 let anamneseModelsCache = [];
 let anamneseResponsesCache = [];
 
@@ -740,3 +727,18 @@ function viewAnamneseResponse(id) {
   `;
   document.body.appendChild(modal);
 }
+
+document.addEventListener("DOMContentLoaded", async function() {
+  applySavedCredsToForm();
+  if (typeof sb !== "undefined" && sb) {
+    try {
+      var sRes = await sb.auth.getSession();
+      var session = sRes && sRes.data ? sRes.data.session : null;
+      if (session && document.getElementById("app-section")) {
+        var pRes = await sb.from("profiles").select("*").eq("id", session.user.id).single();
+        var profile = pRes ? pRes.data : null;
+        if (profile && (profile.role === "admin" || !!profile.ativo)) openWorkspace(profile);
+      }
+    } catch (err) { console.error("Erro ao verificar sessão:", err); }
+  }
+});
