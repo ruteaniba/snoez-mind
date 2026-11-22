@@ -118,7 +118,8 @@ function switchWorkspaceTab(tab) {
     var sec = document.getElementById("tab-" + t);
     if (sec) sec.classList.toggle("hidden", t !== tab);
   });
-  if (tab === "emocional") { loadClients(); }
+  if (tab === "emocional") { loadAnamneseModels();
+  loadAnamneseResponses(); }
 }
 
 function showAppAlert(msg, type) {
@@ -141,7 +142,8 @@ function openWorkspace(profile) {
   if (profile && profile.role === "admin") document.getElementById("admin-link")?.classList.remove("hidden");
   
   // Removemos o loadChildren() e loadReports() daqui, pois a tela sumiu.
-  loadClients(); 
+  loadAnamneseModels();
+  loadAnamneseResponses(); 
 }
 
 async function logoutUser() {
@@ -261,112 +263,11 @@ async function loadReports() {
   }
 }
 
-async function loadClients() {
-  if (typeof sb === "undefined" || !sb) return;
-  var uRes = await sb.auth.getUser(); var user = uRes && uRes.data ? uRes.data.user : null;
-  if (!user) return;
-  var res = await sb.from("clientes_emocionais").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
-  clientsCache = res.data || [];
-  var tbody = document.getElementById("clients-tbody");
-  if (!tbody) return;
-  if (clientsCache.length === 0) tbody.innerHTML = '<tr><td colspan="5">Nenhum paciente cadastrado.</td></tr>';
-  else {
-    var htmlRows = [];
-    clientsCache.forEach(function(cl, idx) { htmlRows.push('<tr><td><strong>' + escapeHtml(cl.nome) + '</strong></td><td>' + escapeHtml(cl.telefone || "-") + '<br><small>' + escapeHtml(cl.email || "") + '</small></td><td>' + escapeHtml(cl.queixa_principal || "-") + '</td><td><small>' + escapeHtml(cl.anamnese || "-") + '</small></td><td class="actions"><button type="button" class="btn btn-outline btn-sm" onclick="editClientByIndex(' + idx + ')">Editar</button><button type="button" class="btn btn-danger btn-sm" onclick="deleteClient(\'' + escapeHtml(cl.id) + '\')">Excluir</button></td></tr>'); });
-    tbody.innerHTML = htmlRows.join("");
-  }
-}
 
-function editClientByIndex(idx) {
-  var cl = clientsCache[idx]; if (!cl) return;
-  document.getElementById("client-id").value = cl.id;
-  document.getElementById("client-nome").value = cl.nome || "";
-  document.getElementById("client-tel").value = cl.telefone || "";
-  document.getElementById("client-email").value = cl.email || "";
-  document.getElementById("client-queixa").value = cl.queixa_principal || "";
-  document.getElementById("client-anamnese").value = cl.anamnese || "";
-}
 
-function resetClientForm() { document.getElementById("client-id").value = ""; document.getElementById("client-form")?.reset(); }
 
-async function saveClient() {
-  if (typeof sb === "undefined" || !sb) return;
-  var uRes = await sb.auth.getUser(); var user = uRes && uRes.data ? uRes.data.user : null;
-  if (!user) return showAppAlert("Faça login para salvar.", "error");
-  var id = document.getElementById("client-id")?.value;
-  var payload = { user_id: user.id, nome: (document.getElementById("client-nome")?.value || "").trim(), telefone: (document.getElementById("client-tel")?.value || "").trim() || null, email: (document.getElementById("client-email")?.value || "").trim() || null, queixa_principal: (document.getElementById("client-queixa")?.value || "").trim() || null, anamnese: (document.getElementById("client-anamnese")?.value || "").trim() || null, updated_at: new Date().toISOString() };
-  var res = id ? await sb.from("clientes_emocionais").update(payload).eq("id", id) : await sb.from("clientes_emocionais").insert(payload);
-  if (res.error) return showAppAlert("Erro: " + res.error.message, "error");
-  resetClientForm(); showAppAlert("Prontuário salvo!"); loadClients();
-}
 
-async function deleteClient(id) {
-  if (typeof sb === "undefined" || !sb) return;
-  var res = await sb.from("clientes_emocionais").delete().eq("id", id);
-  if (res.error) return showAppAlert("Erro: " + res.error.message, "error");
-  showAppAlert("Removido."); loadClients();
-}
 
-function startGame(type, level = 1) {
-  gameState = { type: type, level: level, startedAt: Date.now(), acertos: 0, tentativas: 0, selected: null, matchedIds: [], levelCorrects: 0, totalAcertos: level > 1 ? (gameState?.totalAcertos || 0) : 0, totalTentativas: level > 1 ? (gameState?.totalTentativas || 0) : 0 };
-  if (type === "pareamento_cores") {
-    var base = [
-      { key: "Vermelho", color: "#EF4444", icon: "🍎" }, { key: "Azul", color: "#3B82F6", icon: "🚙" },
-      { key: "Amarelo", color: "#EAB308", icon: "🌟" }, { key: "Verde", color: "#22C55E", icon: "🍀" },
-      { key: "Roxo", color: "#A855F7", icon: "🍇" }, { key: "Laranja", color: "#F97316", icon: "🍊" }
-    ];
-    var items = [];
-    base.forEach(function(b, idx) {
-      items.push({ id: "a-" + idx, key: b.key, icon: b.icon, color: b.color });
-      items.push({ id: "b-" + idx, key: b.key, icon: b.icon, color: b.color });
-    });
-    gameState.items = shuf(items); gameState.totalPairs = base.length;
-    renderPairGame();
-  } else if (type === "pareamento_sobras") {
-    var allColors = [
-      { key: "Vermelho", color: "#EF4444", icon: "🍎" }, { key: "Azul", color: "#3B82F6", icon: "🚙" },
-      { key: "Amarelo", color: "#EAB308", icon: "🌟" }, { key: "Verde", color: "#22C55E", icon: "🍀" },
-      { key: "Roxo", color: "#A855F7", icon: "🍇" }, { key: "Laranja", color: "#F97316", icon: "🍊" }
-    ];
-    var shuffled = shuf(allColors);
-    var targets = shuffled.slice(0, 4); // 4 alvos fixos
-    var pieces = shuffled.map(function(c) { return { id: "p-" + c.key, key: c.key, icon: c.icon, color: c.color, placed: false }; }); // 6 peças (2 sobras)
-    gameState.targets = targets.map(function(t, idx) { return { id: "t-" + idx, key: t.key, color: t.color, filled: false }; });
-    gameState.pieces = shuf(pieces);
-    gameState.selectedPiece = null;
-    renderSobrasGame();
-  } else if (type === "quebra_cabeca") {
-    startRealPuzzle();
-  } else if (type === "identificacao_imagem") {
-    var bank = [
-      { icon: "🐶", word: "Cachorro" }, { icon: "🐱", word: "Gato" }, { icon: "🍎", word: "Maçã" }, { icon: "🚗", word: "Carro" },
-      { icon: "⭐", word: "Estrela" }, { icon: "🐘", word: "Elefante" }, { icon: "🍌", word: "Banana" }, { icon: "✈️", word: "Avião" },
-      { icon: "🌻", word: "Girassol" }, { icon: "🐟", word: "Peixe" }, { icon: "🍇", word: "Uva" }, { icon: "🚲", word: "Bicicleta" },
-      { icon: "🦁", word: "Leão" }, { icon: "🍓", word: "Morango" }, { icon: "🚁", word: "Helicóptero" }, { icon: "🌈", word: "Arco-íris" }
-    ];
-    var maxOptions = level === 1 ? 4 : (level === 2 ? 6 : 9);
-    var options = shuf(bank).slice(0, maxOptions);
-    gameState.target = options[Math.floor(Math.random() * options.length)]; gameState.options = options;
-    renderIdentifyGame();
-  } else if (type === "ligar_imagens") {
-    var pairs = [
-      { id: 1, left: "🔑", right: "🔒", label: "Chave e cadeado" }, { id: 2, left: "🖌️", right: "🎨", label: "Pincel e tinta" },
-      { id: 3, left: "🧦", right: "👟", label: "Meia e tênis" }, { id: 4, left: "☀️", right: "🕶️", label: "Sol e óculos" },
-      { id: 5, left: "☕", right: "🥐", label: "Café e pão" }, { id: 6, left: "🧼", right: "💧", label: "Sabão e água" }
-    ];
-    gameState.pairs = pairs; gameState.leftItems = shuf(pairs.map(function(p) { return { id: p.id, icon: p.left }; })); gameState.rightItems = shuf(pairs.map(function(p) { return { id: p.id, icon: p.right }; })); gameState.selectedLeft = null;
-    renderConnectGame();
-  } else if (type === "identificacao_conceitos") {
-    var cBank = [
-      { display: "A", label: "Letra A" }, { display: "7", label: "Número 7" }, { display: "🔵", label: "Círculo azul" },
-      { display: "🔺", label: "Triângulo" }, { display: "🦋", label: "Borboleta" }, { display: "🟨", label: "Quadrado amarelo" },
-      { display: "B", label: "Letra B" }, { display: "3", label: "Número 3" }, { display: "🟩", label: "Quadrado verde" }, { display: "⭐", label: "Estrela" }
-    ];
-    var opts = shuf(cBank).slice(0, 6);
-    gameState.target = opts[Math.floor(Math.random() * opts.length)]; gameState.options = opts;
-    renderConceptsGame();
-  }
-}
 
 function renderPairGame() {
   var board = document.getElementById("game-board");

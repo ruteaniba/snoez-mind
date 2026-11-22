@@ -116,49 +116,38 @@
 
       
 
+      
       <section id="tab-emocional" class="card hidden">
-        <h3>Terapia Emocional — Gestão de Pacientes e Anamnese</h3>
-        <p class="subtitle">Registre clientes e mantenha a anamnese organizada e atualizada.</p>
+        <h3>Terapia Emocional — Prontuários Dinâmicos</h3>
+        <p class="subtitle">Selecione um modelo de anamnese criado pelo administrador e preencha.</p>
 
-        <form id="client-form" onsubmit="event.preventDefault(); saveClient();">
-          <input type="hidden" id="client-id">
-          <div class="grid-2">
-            <div class="field">
-              <label for="client-nome">Nome do cliente</label>
-              <input id="client-nome" type="text" required>
-            </div>
-            <div class="field">
-              <label for="client-tel">Telefone / WhatsApp</label>
-              <input id="client-tel" type="text">
-            </div>
-            <div class="field">
-              <label for="client-email">E-mail</label>
-              <input id="client-email" type="email">
-            </div>
-            <div class="field">
-              <label for="client-queixa">Queixa principal</label>
-              <input id="client-queixa" type="text">
-            </div>
-          </div>
+        <div class="field">
+          <label>Selecione o Modelo de Anamnese</label>
+          <select id="select-anamnese-modelo" onchange="renderAnamneseForm()">
+            <option value="">Carregando modelos...</option>
+          </select>
+        </div>
+
+        <form id="dynamic-anamnese-form" class="hidden" onsubmit="event.preventDefault(); saveAnamneseResponse();" style="margin-top:20px; border-top:1px solid #ddd; padding-top:20px;">
+          <input type="hidden" id="current-anamnese-id">
           <div class="field">
-            <label for="client-anamnese">Anamnese (histórico, gatilhos, contexto emocional e observações)</label>
-            <textarea id="client-anamnese" placeholder="Escreva aqui os detalhes da anamnese..."></textarea>
+            <label>Nome do Paciente</label>
+            <input type="text" id="paciente-nome" required placeholder="Nome de quem está sendo avaliado">
           </div>
-          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <div id="dynamic-fields-container"></div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 15px;">
             <button type="submit" class="btn btn-gold" style="max-width:260px;">Salvar Prontuário</button>
-            <button type="button" class="btn btn-outline" onclick="resetClientForm()">Limpar Campos</button>
+            <button type="button" class="btn btn-outline" onclick="document.getElementById('dynamic-anamnese-form').classList.add('hidden')">Cancelar</button>
           </div>
         </form>
 
-        <h3 style="margin-top:22px;">Pacientes Cadastrados</h3>
+        <h3 style="margin-top:30px;">Prontuários Salvos</h3>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Cliente</th>
-                <th>Contato</th>
-                <th>Queixa Principal</th>
-                <th>Anamnese</th>
+                <th>Paciente</th>
+                <th>Data</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -166,6 +155,7 @@
           </table>
         </div>
       </section>
+    
     </main>
   </div>
 

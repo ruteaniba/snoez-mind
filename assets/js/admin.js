@@ -35,6 +35,7 @@ async function initAdmin() {
   }
 
   loadUsers();
+  loadAnamneseTemplates();
 }
 
 async function loadUsers() {
@@ -80,6 +81,7 @@ async function toggleUser(id, novoStatus) {
   const { error } = await sb.from("profiles").update({ ativo: novoStatus }).eq("id", id);
   if (error) return showAdminAlert("Erro ao atualizar estado: " + error.message);
   loadUsers();
+  loadAnamneseTemplates();
 }
 
 async function saveDates(id) {
@@ -89,6 +91,7 @@ async function saveDates(id) {
   if (error) return showAdminAlert("Erro ao guardar datas: " + error.message);
   showAdminAlert("Datas atualizadas com sucesso!", "success");
   loadUsers();
+  loadAnamneseTemplates();
 }
 
 async function removeUser(id) {
@@ -97,6 +100,7 @@ async function removeUser(id) {
   if (error) return showAdminAlert("Erro ao remover: " + error.message);
   showAdminAlert("Utilizador removido com sucesso.", "success");
   loadUsers();
+  loadAnamneseTemplates();
 }
 
 // --- NOVA FUNÇÃO PARA MOSTRAR OS DADOS DO CLIENTE ---
@@ -124,7 +128,7 @@ async function viewTherapistData(userId, userName) {
   try {
     // Puxa Anamnese, Crianças e Sessões desse terapeuta específico
     const [anamneses, criancas, sessoes] = await Promise.all([
-      sb.from("clientes_emocionais").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+      sb.from("anamnese_respostas").select("*, anamnese_modelos(titulo)").eq("user_id", userId).order("created_at", { ascending: false }),
       sb.from("criancas").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
       sb.from("sessoes_jogos").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(20)
     ]);
@@ -136,12 +140,12 @@ async function viewTherapistData(userId, userName) {
     if (anamneses.data && anamneses.data.length > 0) {
       html += `<div style="display:grid; gap:10px; margin-bottom:30px;">`;
       anamneses.data.forEach(a => {
+        const respostasStr = Object.entries(a.respostas || {}).map(([k, v]) => `<li><b>${k}:</b> ${v}</li>`).join("");
         html += `
           <div style="background:#f9f9f9; padding:15px; border-left:4px solid #D97706; border-radius:4px;">
-            <strong>Paciente: ${escapeHTML(a.nome)}</strong> <br>
+            <strong>Paciente: ${escapeHTML(a.paciente_nome)}</strong> <br><small>Modelo: ${escapeHTML(a.anamnese_modelos?.titulo || "N/A")}</small><br>
             <small><b>Contato:</b> ${escapeHTML(a.telefone || "-")} | ${escapeHTML(a.email || "-")}</small><br>
-            <p style="margin:5px 0;"><b>Queixa:</b> ${escapeHTML(a.queixa_principal || "-")}</p>
-            <p style="margin:5px 0;"><b>Anamnese:</b> ${escapeHTML(a.anamnese || "-")}</p>
+            <ul style="margin:10px 0; padding-left:20px; font-size:14px;">${respostasStr}</ul>
           </div>
         `;
       });
@@ -193,3 +197,109 @@ async function viewTherapistData(userId, userName) {
 }
 
 document.addEventListener("DOMContentLoaded", initAdmin);
+
+let anamneseCamposList = [];
+
+function showAnamneseAlert(msg, type = "error") {
+  const el = document.getElementById("admin-anamnese-alert");
+  if (!el) return;
+  el.textContent = msg;
+  el.className = `alert show ${type}`;
+}
+
+function addAnamneseField(label = "", type = "text") {
+  const container = document.getElementById("anamnese-campos-container");
+  const id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+  
+  const div = document.createElement("div");
+  div.style.cssText = "display:flex; gap:10px; align-items:center; background:#fff; padding:10px; border:1px solid #ddd; border-radius:5px;";
+  div.id = `field-${id}`;
+  div.innerHTML = `
+    <input type="text" placeholder="Nome do Campo (Ex: Histórico Familiar)" value="${label}" style="flex:1;" class="f-label">
+    <select class="f-type" style="width:120px;">
+      <option value="text" ${type === 'text' ? 'selected' : ''}>Texto Curto</option>
+      <option value="textarea" ${type === 'textarea' ? 'selected' : ''}>Texto Longo</option>
+      <option value="date" ${type === 'date' ? 'selected' : ''}>Data</option>
+    </select>
+    <button type="button" class="btn btn-danger btn-sm" onclick="document.getElementById('field-${id}').remove()">X</button>
+  `;
+  container.appendChild(div);
+}
+
+function resetAnamneseForm() {
+  document.getElementById("anamnese-id").value = "";
+  document.getElementById("anamnese-titulo").value = "";
+  document.getElementById("anamnese-campos-container").innerHTML = "";
+  anamneseCamposList = [];
+}
+
+async function saveAnamneseTemplate() {
+  const id = document.getElementById("anamnese-id").value;
+  const titulo = document.getElementById("anamnese-titulo").value.trim();
+  const camposDivs = document.querySelectorAll("#anamnese-campos-container > div");
+  
+  if (!titulo) return showAnamneseAlert("O título é obrigatório.");
+  if (camposDivs.length === 0) return showAnamneseAlert("Adicione pelo menos um campo.");
+
+  const campos = [];
+  camposDivs.forEach(div => {
+    const label = div.querySelector(".f-label").value.trim();
+    const type = div.querySelector(".f-type").value;
+    if (label) campos.push({ id: "c_" + Math.random().toString(36).substr(2, 9), label, type });
+  });
+
+  if (campos.length === 0) return showAnamneseAlert("Preencha o nome dos campos.");
+
+  const payload = { titulo, campos };
+  let res;
+
+  if (id) {
+    res = await sb.from("anamnese_modelos").update(payload).eq("id", id);
+  } else {
+    res = await sb.from("anamnese_modelos").insert(payload);
+  }
+
+  if (res.error) return showAnamneseAlert("Erro ao salvar: " + res.error.message);
+
+  showAnamneseAlert("Modelo salvo com sucesso!", "success");
+  resetAnamneseForm();
+  loadAnamneseTemplates();
+}
+
+async function loadAnamneseTemplates() {
+  const tbody = document.getElementById("anamneses-tbody");
+  if (!tbody) return;
+
+  const { data, error } = await sb.from("anamnese_modelos").select("*").order("created_at", { ascending: false });
+  if (error) return showAnamneseAlert("Erro ao carregar modelos.");
+
+  if (!data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3">Nenhum modelo criado.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(m => `
+    <tr>
+      <td><strong>${escapeHTML(m.titulo)}</strong></td>
+      <td>${m.campos.length} campos</td>
+      <td class="actions" style="display:flex; gap:5px;">
+        <button class="btn btn-outline btn-sm" onclick='editAnamneseTemplate(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAnamneseTemplate('${m.id}')">Excluir</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+function editAnamneseTemplate(modelo) {
+  resetAnamneseForm();
+  document.getElementById("anamnese-id").value = modelo.id;
+  document.getElementById("anamnese-titulo").value = modelo.titulo;
+  modelo.campos.forEach(c => addAnamneseField(c.label, c.type));
+}
+
+async function deleteAnamneseTemplate(id) {
+  if (!confirm("Excluir este modelo? Os prontuários preenchidos com ele também serão apagados.")) return;
+  const { error } = await sb.from("anamnese_modelos").delete().eq("id", id);
+  if (error) return showAnamneseAlert("Erro ao excluir.");
+  loadAnamneseTemplates();
+}

@@ -38,6 +38,41 @@
         </table>
       </div>
     </div>
+  
+    <div class="card" style="margin-top: 20px;">
+      <h2>Modelos de Anamnese</h2>
+      <p class="subtitle">Crie formulários personalizados para os terapeutas preencherem com os pacientes.</p>
+      <div id="admin-anamnese-alert" class="alert"></div>
+
+      <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <input type="hidden" id="anamnese-id">
+        <div class="field">
+          <label>Título do Modelo (Ex: Anamnese Infantil)</label>
+          <input type="text" id="anamnese-titulo" placeholder="Digite o título...">
+        </div>
+        <div id="anamnese-campos-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;"></div>
+        
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="addAnamneseField()">+ Adicionar Pergunta/Campo</button>
+          <button type="button" class="btn btn-gold btn-sm" onclick="saveAnamneseTemplate()">Salvar Modelo</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="resetAnamneseForm()">Limpar</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Título do Modelo</th>
+              <th>Nº de Campos</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="anamneses-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    
   </main>
   <script src="assets/js/config.js?v=20261121e"></script>
   <script src="assets/js/auth.js?v=20261121e"></script>
